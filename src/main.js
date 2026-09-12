@@ -36,6 +36,7 @@ function buildWorld() {
   player = new Player(camera, renderer.domElement, scene)
   spawner = new Spawner(scene, {
     camera,
+    obstacles: arena.obstacles,
     onContact: (def) => {
       if (player.takeDamage(CONFIG.player.damageFromEnemy)) hud.flashDamage()
     },
@@ -223,7 +224,7 @@ if (location.search.includes('autobattle')) {
             if (moveDir.dot(r) > 0.3) player.keys['KeyD'] = true
             if (moveDir.dot(r) < -0.3) player.keys['KeyA'] = true
           }
-          player.update(dt, arena.halfSize, spawner.getGroups(), false)
+          player.update(dt, arena.halfSize, spawner.getGroups(), false, arena.obstacles)
           weapon.update(dt)
           shotCd -= dt
           if (target && bestD < 45 && shotCd <= 0) {
@@ -305,7 +306,7 @@ function loop() {
 
   if (state === 'playing' || state === 'won') {
     elapsed += dt
-    player.update(dt, arena.halfSize, spawner.getGroups(), false)
+    player.update(dt, arena.halfSize, spawner.getGroups(), false, arena.obstacles)
     weapon.update(dt)
     spawner.update(dt, player.pos, arena.halfSize - 0.5)
     levelup.update(dt, player.pos)

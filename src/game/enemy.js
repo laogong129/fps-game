@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config.js'
 import { makeTextSprite, updateSpriteText } from './text.js'
+import { resolveObstacles } from './arena.js'
 
 export function createEnemy(type, hpMultiplier, scene) {
   const def = CONFIG.enemy[type]
@@ -41,6 +42,8 @@ export function createEnemy(type, hpMultiplier, scene) {
     stateTimer: 0,
     ringTimer: def.behavior === 'boss' ? CONFIG.boss.ringEvery : 0,
     summonTimer: def.behavior === 'boss' ? 5 : 0,
+    orbitTimer: 0,
+    orbitDir: 1,
     chargeDir: new THREE.Vector3(),
   }
   return e
@@ -74,40 +77,60 @@ function addEyes(group, def) {
   }
 }
 
-export function chaseEnemy(e, playerPos, dt, inner, others) {
-  moveToward(e, playerPos, dt, inner, others)
+export function chaseEnemy(e, playerPos, dt, inner, others, api) {
+  moveToward(e, playerPos, dt, inner, others, api)
 }
 
-function moveToward(e, playerPos, dt, inner, others) {
+function moveToward(e, playerPos, dt, inner, others, api) {
   const half = e.def.size / 2
-  const dir = playerPos.clone().sub(e.group.position)
-  dir.y = 0
-  const dist = dir.length()
-  if (dist > 0.1) {
-    const step = e.def.speed * dt
-    const ground = playerPos.clone()
-    ground.y = 0
-    const target = dist < step ? ground : e.group.position.clone().add(dir.normalize().multiplyScalar(step))
-    e.group.position.lerp(target, 1)
+  const pos = e.group.position
+  const obstacles = api?.obstacles
+  if (e.orbitTimer > 0) {
+    e.orbitTimer -= dt
+    const away = pos.clone().sub(playerPos)
+    away.y = 0
+    if (away.lengthSq() > 0.01) {
+      const perp = new THREE.Vector3(-away.z * e.orbitDir, 0, away.x * e.orbitDir).normalize()
+      pos.addScaledVector(perp, e.def.speed * dt)
+    }
+  } else {
+    const dir = playerPos.clone().sub(pos)
+    dir.y = 0
+    const dist = dir.length()
+    if (dist > 0.1) {
+      const step = e.def.speed * dt
+      const ground = playerPos.clone()
+      ground.y = 0
+      const target = dist < step ? ground : pos.clone().add(dir.normalize().multiplyScalar(step))
+      pos.lerp(target, 1)
+    }
   }
   for (const o of others) {
     if (o === e) continue
-    const push = e.group.position.clone().sub(o.group.position)
+    const push = pos.clone().sub(o.group.position)
     push.y = 0
     const d = push.length()
     const min = CONFIG.enemy.separation
     if (d > 0.001 && d < min) {
-      e.group.position.add(push.normalize().multiplyScalar((min - d) / 2))
+      pos.add(push.normalize().multiplyScalar((min - d) / 2))
     }
   }
-  e.group.position.x = THREE.MathUtils.clamp(e.group.position.x, -inner + half, inner - half)
-  e.group.position.z = THREE.MathUtils.clamp(e.group.position.z, -inner + half, inner - half)
+  if (obstacles) {
+    const before = pos.clone()
+    resolveObstacles(pos, half + 0.2, obstacles)
+    if (pos.distanceTo(before) > 0.05) {
+      e.orbitTimer = 0.8
+      if (!e.orbitDir) e.orbitDir = Math.random() < 0.5 ? 1 : -1
+    }
+  }
+  pos.x = THREE.MathUtils.clamp(pos.x, -inner + half, inner - half)
+  pos.z = THREE.MathUtils.clamp(pos.z, -inner + half, inner - half)
 }
 
 export function updateSpitter(e, playerPos, dt, inner, others, api) {
   const dist = e.group.position.distanceTo(playerPos)
   if (dist > e.def.standRange) {
-    moveToward(e, playerPos, dt, inner, others)
+    moveToward(e, playerPos, dt, inner, others, api)
   } else {
     for (const o of others) {
       if (o === e) continue
@@ -132,7 +155,7 @@ export function updateCharger(e, playerPos, dt, inner, others, api) {
   dir.y = 0
   dir.normalize()
   if (e.state === 'seek') {
-    moveToward(e, playerPos, dt, inner, others)
+    moveToward(e, playerPos, dt, inner, others, api)
     if (dist < e.def.standRange) {
       e.state = 'telegraph'
       e.stateTimer = e.def.telegraphTime
@@ -164,7 +187,7 @@ export function updateCharger(e, playerPos, dt, inner, others, api) {
 }
 
 export function updateBoss(e, playerPos, dt, inner, others, api) {
-  moveToward(e, playerPos, dt, inner, others)
+  moveToward(e, playerPos, dt, inner, others, api)
   e.ringTimer -= dt
   e.summonTimer -= dt
   if (e.ringTimer <= 0) {

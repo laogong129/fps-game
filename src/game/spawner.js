@@ -179,6 +179,7 @@ export class Spawner {
       fireProjectile: (e) => this.fireProjectile(e, playerPos),
       bossRing: (o) => this.bossRing(o),
       bossSummon: (pos) => this.bossSummon(pos),
+      obstacles: this.events.obstacles,
     }
     for (const e of this.enemies) {
       const b = e.def.behavior

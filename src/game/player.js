@@ -56,7 +56,7 @@ export class Player {
     return new THREE.Vector3(-f.z, 0, f.x)
   }
 
-  update(dt, inner, enemyGroups, paused) {
+  update(dt, inner, enemyGroups, paused, obstacles) {
     if (paused || !this.controls?.isLocked) return
     if (this.invulnTimer > 0) this.invulnTimer -= dt
 
@@ -83,6 +83,7 @@ export class Player {
         this.pos.z += (dz / d) * (min - d)
       }
     }
+    if (obstacles) resolveObstacles(this.pos, p.radius, obstacles)
     const grounded = this.pos.y <= p.height
     if (this.jumpQueued && grounded) this.yVel = p.jump.velocity
     this.jumpQueued = false

@@ -42,7 +42,10 @@ export class Spawner {
       const dx = c.x - playerPos.x
       const dz = c.z - playerPos.z
       if (Math.hypot(dx, dz) < p.contactRadius + e.def.size / 2) {
-        if (this.events.onContact(e.def)) this.enemies.splice(i, 1)
+        if (this.events.onContact(e.def)) {
+          this.enemies.splice(i, 1)
+          if (this.events.onHurt) this.events.onHurt(p.damageFromEnemy, playerPos)
+        }
       }
     }
   }
@@ -61,10 +64,12 @@ export class Spawner {
     if (!group) return
     const i = this.enemies.findIndex((e) => e.group === group)
     if (i < 0) return
+    const pos = group.position.clone()
     if (damageEnemy(this.enemies[i], damage, this.scene)) {
       const dead = this.enemies.splice(i, 1)[0]
       this.events.onEnemyKilled(dead, dead.type)
     }
+    if (this.events.onDamage) this.events.onDamage(damage, pos)
   }
 
   clear() {

@@ -68,18 +68,19 @@ export class Weapon {
   }
 
   aimAssist(from, dir, targets) {
-    const cos = Math.cos(THREE.MathUtils.degToRad(CONFIG.weapon.assistAngle))
+    const maxAngle = THREE.MathUtils.degToRad(CONFIG.weapon.assistAngle)
     let best = null
-    let bestDot = cos
+    let bestAngle = maxAngle
     for (const t of targets) {
       if (!t.userData.enemyGroup) continue
-      const to = t.position.clone().sub(from)
+      const c = t.position.clone()
+      c.y += t.userData.centerHeight || 0.5
+      const to = c.sub(from)
       const d = to.length()
-      if (d > 50 || d < 0.5) continue
-      to.normalize()
-      const dot = to.dot(dir)
-      if (dot > bestDot) {
-        bestDot = dot
+      if (d > CONFIG.weapon.assistRange || d < 0.5) continue
+      const angle = to.normalize().angleTo(dir)
+      if (angle <= bestAngle) {
+        bestAngle = angle
         best = { root: t, point: from.clone().add(dir.clone().multiplyScalar(d)) }
       }
     }

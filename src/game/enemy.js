@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config.js'
+import { makeTextSprite, updateSpriteText } from './text.js'
 
 export function createEnemy(type, hpMultiplier, scene) {
   const def = CONFIG.enemy[type]
@@ -18,6 +19,9 @@ export function createEnemy(type, hpMultiplier, scene) {
   )
   hpBar.position.y = def.size + 0.3
   group.add(hpBar)
+  const hpText = makeTextSprite(`${def.hp * hpMultiplier}`, { color: '#ff8888', size: 40 })
+  hpText.position.y = def.size + 0.7
+  group.add(hpText)
   group.userData.enemyGroup = true
   group.userData.centerHeight = def.size / 2
   scene.add(group)
@@ -28,6 +32,7 @@ export function createEnemy(type, hpMultiplier, scene) {
     group,
     body,
     hpBar,
+    hpText,
     hp,
     maxHp: hp,
   }
@@ -68,6 +73,7 @@ export function enemyCenter(enemy) {
 
 export function damageEnemy(enemy, amount, scene) {
   enemy.hp -= amount
+  updateSpriteText(enemy.hpText, `${Math.max(0, Math.ceil(enemy.hp))}`, { color: '#ff8888', size: 40 })
   enemy.body.material.emissive = new THREE.Color(0x662200)
   setTimeout(() => { if (enemy.body.material) enemy.body.material.emissive = new THREE.Color(0x000000) }, 80)
   if (enemy.hp <= 0) {

@@ -9,6 +9,9 @@ export class Hud {
       xp: document.getElementById('xp-fill'),
       ammo: document.getElementById('hud-ammo'),
       weapon: document.getElementById('hud-weapon'),
+      hpNum: document.getElementById('hp-num'),
+      xpNum: document.getElementById('xp-num'),
+      level: document.getElementById('hud-level'),
     }
   }
 
@@ -17,6 +20,9 @@ export class Hud {
     this.el.kills.textContent = stats.kills
     this.el.hp.style.width = `${Math.max(0, (stats.hp / stats.maxHp) * 100)}%`
     this.el.xp.style.width = `${Math.min(100, (stats.xp / stats.xpNext) * 100)}%`
+    this.el.hpNum.textContent = `${Math.ceil(stats.hp)}/${Math.ceil(stats.maxHp)}`
+    this.el.xpNum.textContent = `${stats.xp}/${stats.xpNext}`
+    this.el.level.textContent = stats.level
     this.el.ammo.textContent = stats.ammoHint
     this.el.weapon.textContent = stats.ammo
   }

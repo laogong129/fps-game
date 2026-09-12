@@ -6,6 +6,7 @@ import { Weapon } from './game/weapon.js'
 import { Spawner } from './game/spawner.js'
 import { LevelUp } from './game/levelup.js'
 import { Hud } from './game/hud.js'
+import { FloatingText } from './game/text.js'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
@@ -23,6 +24,7 @@ window.addEventListener('resize', () => {
 
 const arena = createArena(scene)
 const hud = new Hud()
+const floats = new FloatingText(scene)
 
 let state = 'idle'
 let kills = 0
@@ -38,6 +40,8 @@ function buildWorld() {
       kills++
       levelup.gainXp(dead.def.xp, dead.group.position)
     },
+    onDamage: (dmg, pos) => floats.spawn(`-${dmg}`, pos, '#ffd24a'),
+    onHurt: (dmg, pos) => floats.spawn(`-${dmg}`, pos, '#ff4444'),
   })
   levelup = new LevelUp(scene, player, weapon, () => {}, () => {})
   weapon = new Weapon(scene, player, {
@@ -119,6 +123,7 @@ function loop() {
     weapon.update(dt)
     spawner.update(dt, player.pos, arena.halfSize - 0.5)
     levelup.update(dt, player.pos)
+    floats.update(dt)
     if (player.hp <= 0) onGameOver()
   } else if (state === 'levelup') {
     levelup.update(dt, player.pos)

@@ -25,7 +25,8 @@ export const CONFIG = {
     magSize: 5,
     reloadTime: 1.2,
     muzzleY: 1.5,
-    assistAngle: 3,
+    assistAngle: 14,
+    assistRange: 50,
   },
 
   enemy: {

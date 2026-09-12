@@ -2,9 +2,9 @@ export const CONFIG = {
   arena: {
     size: 60,
     wallHeight: 4,
-    wallColor: 0x445566,
-    floorColor: 0x1c2430,
-    fogColor: 0x0d1117,
+    wallColor: 0x8c3b2e,
+    floorColor: 0x6b4f36,
+    fogColor: 0x3d2e4f,
     fogFar: 90,
   },
 

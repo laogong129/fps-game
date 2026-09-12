@@ -12,6 +12,7 @@ export function createEnemy(type, hpMultiplier, scene) {
   body.position.y = def.size / 2
   body.castShadow = true
   group.add(body)
+  addEyes(group, def)
 
   const hpBar = new THREE.Mesh(
     new THREE.PlaneGeometry(def.size, 0.12),
@@ -43,6 +44,34 @@ export function createEnemy(type, hpMultiplier, scene) {
     chargeDir: new THREE.Vector3(),
   }
   return e
+}
+
+function addEyes(group, def) {
+  const eyeGeo = new THREE.SphereGeometry(def.size * 0.09, 8, 8)
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: def.behavior === 'boss' ? 0xff2200 : 0xffcc00,
+    emissiveIntensity: 2,
+  })
+  const ex = def.size * 0.28
+  const ez = def.size * 0.5
+  const ey = def.size * 0.62
+  const l = new THREE.Mesh(eyeGeo, eyeMat)
+  l.position.set(-ex, ey, ez)
+  const r = new THREE.Mesh(eyeGeo, eyeMat)
+  r.position.set(ex, ey, ez)
+  group.add(l, r)
+  if (def.behavior === 'boss') {
+    const hornGeo = new THREE.ConeGeometry(def.size * 0.18, def.size * 0.5, 6)
+    const hornMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5 })
+    const h1 = new THREE.Mesh(hornGeo, hornMat)
+    h1.position.set(-def.size * 0.4, def.size + 0.1, 0)
+    h1.rotation.z = 0.5
+    const h2 = new THREE.Mesh(hornGeo, hornMat)
+    h2.position.set(def.size * 0.4, def.size + 0.1, 0)
+    h2.rotation.z = -0.5
+    group.add(h1, h2)
+  }
 }
 
 export function chaseEnemy(e, playerPos, dt, inner, others) {

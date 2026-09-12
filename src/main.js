@@ -36,7 +36,9 @@ function buildWorld() {
   player = new Player(camera, renderer.domElement, scene)
   spawner = new Spawner(scene, {
     camera,
-    onContact: (def) => player.takeDamage(CONFIG.player.damageFromEnemy),
+    onContact: (def) => {
+      if (player.takeDamage(CONFIG.player.damageFromEnemy)) hud.flashDamage()
+    },
     onEnemyKilled: (dead) => {
       kills++
       levelup.gainXp(dead.def.xp, dead.group.position)
@@ -49,6 +51,7 @@ function buildWorld() {
     onProjectileHit: (pr) => {
       if (!player.takeDamage(pr.damage)) return false
       floats.spawn(`-${pr.damage}`, pr.mesh.position, '#ff4444')
+      hud.flashDamage()
       return true
     },
     onCrateCollected: (pos) => {
@@ -308,9 +311,11 @@ function loop() {
     levelup.update(dt, player.pos)
     levelup.updateHeals(dt, player.pos, (pos, amt) => floats.spawn(`+${Math.ceil(amt)}`, pos, '#44ff88'))
     floats.update(dt)
+    arena.updatePetals(dt)
     if (player.hp <= 0) onGameOver()
   } else if (state === 'levelup') {
     levelup.update(dt, player.pos)
+    arena.updatePetals(dt)
   }
   hud.update({
     wave: spawner ? spawner.waveNumber : 1,
@@ -321,7 +326,7 @@ function loop() {
     ammo: weapon ? weapon.getAmmoText() : `${CONFIG.weapon.pistol.magSize} / ${CONFIG.weapon.pistol.magSize}`,
     ammoHint: weapon ? weapon.getReloadHint() : 'R 换弹',
     weaponName: weapon ? weapon.getGunDisplay() : '手枪（1）',
-  })
+  }, dt)
   renderer.render(scene, camera)
 }
 

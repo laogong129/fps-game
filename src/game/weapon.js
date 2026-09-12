@@ -17,6 +17,23 @@ export class WeaponSystem {
     this.flash = new THREE.PointLight(0xffcc66, 0, 6)
     this.flash.position.set(0, 0, -0.4)
     player.gunGroup.add(this.flash)
+
+    this.muzzle = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 6, 6),
+      new THREE.MeshBasicMaterial({ color: 0xfff2a0, transparent: true, opacity: 0 })
+    )
+    this.muzzle.position.set(0, 0, -0.42)
+    player.gunGroup.add(this.muzzle)
+
+    this.sparks = []
+    this.sparkGeo = new THREE.BoxGeometry(0.05, 0.05, 0.05)
+    for (let i = 0; i < 30; i++) {
+      const m = new THREE.Mesh(this.sparkGeo, new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true }))
+      m.visible = false
+      scene.add(m)
+      this.sparks.push({ mesh: m, vel: new THREE.Vector3(), life: 0 })
+    }
+    this.punch = 0
     this.updateModel()
 
     window.addEventListener('mousedown', (e) => {
@@ -111,7 +128,9 @@ export class WeaponSystem {
     g.ammo--
     g.fireTimer = g.fireInterval
     this.kick = 1
+    this.punch = 0.02
     this.flash.intensity = 3
+    this.muzzle.material.opacity = 1
 
     const from = this.player.gunGroup.getWorldPosition(new THREE.Vector3())
     const baseDir = this.player.camera.getWorldDirection(new THREE.Vector3())
@@ -126,6 +145,7 @@ export class WeaponSystem {
         anyHit = true
         this.callbacks.onHit(hit.root, g.damage)
         this.setTracer(from, hit.point)
+        this.spawnSparks(hit.point)
       }
     }
     if (!anyHit) {
@@ -133,6 +153,7 @@ export class WeaponSystem {
       if (assist) {
         this.callbacks.onHit(assist.root, g.damage * (g.pellets === 1 ? 1 : 0.6))
         this.setTracer(from, assist.point)
+        this.spawnSparks(assist.point)
       } else {
         this.setTracer(from, from.clone().add(baseDir.clone().multiplyScalar(100)))
       }
@@ -189,6 +210,19 @@ export class WeaponSystem {
     return best
   }
 
+  spawnSparks(point) {
+    for (const s of this.sparks) {
+      if (s.life > 0) continue
+      s.life = 0.35
+      s.mesh.position.copy(point)
+      s.mesh.visible = true
+      const a = Math.random() * Math.PI * 2
+      const sp = 3 + Math.random() * 5
+      s.vel.set(Math.cos(a) * sp, 2 + Math.random() * 4, Math.sin(a) * sp)
+      break
+    }
+  }
+
   setTracer(from, end) {
     if (this.tracer) {
       this.scene.remove(this.tracer)
@@ -223,9 +257,12 @@ export class WeaponSystem {
     if (g.auto && this.mouseHeld) this.fire()
     this.updateAds(dt)
     if (g.fireTimer > 0) g.fireTimer -= dt
+    if (this.punch > 0) this.punch = Math.max(0, this.punch - dt * 0.35)
+    this.player.cameraRecoilY = this.punch
     const ads = this.adsHeld && g.adsFov
-    const targetY = ads ? -0.18 : -0.4
-    const targetX = ads ? 0 : 0.25
+    const sway = ads ? Math.sin(performance.now() * 0.0022) * 0.004 : 0
+    const targetY = (ads ? -0.18 : -0.4) + sway
+    const targetX = (ads ? 0 : 0.25) + Math.cos(performance.now() * 0.0019) * 0.003
     this.player.gunGroup.position.x += (targetX - this.player.gunGroup.position.x) * Math.min(1, dt * 12)
     this.player.gunGroup.position.y += (targetY - this.player.gunGroup.position.y) * Math.min(1, dt * 12)
     const targetZ = -0.5
@@ -236,6 +273,15 @@ export class WeaponSystem {
       this.player.gunGroup.position.z += (targetZ - this.player.gunGroup.position.z) * Math.min(1, dt * 12)
     }
     this.flash.intensity = Math.max(0, this.flash.intensity - dt * 40)
+    this.muzzle.material.opacity = Math.max(0, this.muzzle.material.opacity - dt * 22)
+    for (const s of this.sparks) {
+      if (s.life <= 0) continue
+      s.life -= dt
+      s.mesh.position.addScaledVector(s.vel, dt)
+      s.vel.y -= 12 * dt
+      s.mesh.material.opacity = s.life / 0.35
+      if (s.life <= 0) s.mesh.visible = false
+    }
     if (g.reloading) {
       g.reloadTimer -= dt
       this.player.gunGroup.rotation.x = -0.6 * Math.sin(Math.min(1, 1 - g.reloadTimer / g.reloadTime) * Math.PI)

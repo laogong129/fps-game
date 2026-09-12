@@ -13,10 +13,12 @@ export class Hud {
       hpNum: document.getElementById('hp-num'),
       xpNum: document.getElementById('xp-num'),
       level: document.getElementById('hud-level'),
+      dmgFlash: document.getElementById('dmg-flash'),
     }
+    this.dmgFlashTimer = 0
   }
 
-  update(stats) {
+  update(stats, dt) {
     this.el.wave.textContent = stats.wave
     this.el.kills.textContent = stats.kills
     this.el.hp.style.width = `${Math.max(0, (stats.hp / stats.maxHp) * 100)}%`
@@ -27,6 +29,15 @@ export class Hud {
     this.el.ammo.textContent = stats.ammoHint
     this.el.weapon.textContent = stats.ammo
     if (stats.weaponName !== undefined) this.el.weaponName.textContent = stats.weaponName
+    if (this.dmgFlashTimer > 0) {
+      this.dmgFlashTimer -= dt
+      this.el.dmgFlash.style.opacity = Math.min(1, this.dmgFlashTimer / 0.3)
+      if (this.dmgFlashTimer <= 0) this.el.dmgFlash.style.opacity = 0
+    }
+  }
+
+  flashDamage() {
+    this.dmgFlashTimer = 0.55
   }
 
   showLevelUp(choices, onPick) {

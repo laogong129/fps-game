@@ -97,6 +97,7 @@ export class Player {
     this.pos.x = THREE.MathUtils.clamp(this.pos.x, -inner + p.radius, inner - p.radius)
     this.pos.z = THREE.MathUtils.clamp(this.pos.z, -inner + p.radius, inner - p.radius)
     this.camera.position.copy(this.pos)
+    if (this.cameraRecoilY) this.camera.position.y += this.cameraRecoilY
   }
 
   takeDamage(amount) {

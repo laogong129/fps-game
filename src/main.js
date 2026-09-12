@@ -26,7 +26,7 @@ window.addEventListener('resize', () => {
 })
 
 const arena = createArena(scene, null)
-new GLTFLoader().load('/assets/temple.glb', (gltf) => {
+new GLTFLoader().load('assets/temple.glb', (gltf) => {
   gltf.scene.traverse((o) => { if (o.isMesh) o.castShadow = true })
   applyAnimeStyle(gltf.scene)
   scene.add(gltf.scene)

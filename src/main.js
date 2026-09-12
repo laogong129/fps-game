@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { CONFIG } from './config.js'
 import { createArena } from './game/arena.js'
 import { Player } from './game/player.js'
-import { Weapon } from './game/weapon.js'
+import { WeaponSystem } from './game/weapon.js'
 import { Spawner } from './game/spawner.js'
 import { LevelUp } from './game/levelup.js'
 import { Hud } from './game/hud.js'
@@ -43,13 +43,12 @@ function buildWorld() {
     onDamage: (dmg, pos) => floats.spawn(`-${dmg}`, pos, '#ffd24a'),
     onHurt: (dmg, pos) => floats.spawn(`-${dmg}`, pos, '#ff4444'),
   })
-  levelup = new LevelUp(scene, player, weapon, () => {}, () => {})
-  weapon = new Weapon(scene, player, {
+  weapon = new WeaponSystem(scene, player, {
     getEnemies: () => spawner.getMeshes(),
     onHit: (mesh, dmg) => spawner.onShotHit(mesh, dmg),
     onShot: () => {},
   })
-  levelup.weapon = weapon
+  levelup = new LevelUp(scene, player, weapon, () => {}, () => {})
   levelup.onLevelUp = (lvl) => {
     state = 'levelup'
     player.controls.unlock()
@@ -76,11 +75,7 @@ function resetStats() {
   player.maxHp = CONFIG.player.maxHp
   player.speedMult = 1
   player.pos.set(0, CONFIG.player.height, 0)
-  weapon.damage = CONFIG.weapon.damage
-  weapon.fireInterval = CONFIG.weapon.fireInterval
-  weapon.magSize = CONFIG.weapon.magSize
-  weapon.ammo = CONFIG.weapon.magSize
-  weapon.reloading = false
+  weapon.resetUpgrades()
   camera.position.set(0, CONFIG.player.height, 0)
   camera.quaternion.identity()
 }
@@ -128,7 +123,7 @@ if (location.search.includes('selftest')) {
       spawner.startWave()
       spawner.spawnOne()
       spawner.spawnOne()
-      weapon.fireInterval = 0.05
+      weapon.gun.fireInterval = 0.05
       CONFIG.pickup.magnetRange = 60
       let t = 0
       while (t < 60 && kills < 10) {
@@ -181,8 +176,9 @@ function loop() {
     hp: player ? player.hp : CONFIG.player.maxHp,
     maxHp: player ? player.maxHp : CONFIG.player.maxHp,
     ...(player ? levelup.getHudData() : { xp: 0, xpNext: CONFIG.levelup.xpForLevel }),
-    ammo: weapon ? weapon.getAmmoText() : `${CONFIG.weapon.magSize} / ${CONFIG.weapon.magSize}`,
-    ammoHint: weapon?.reloading ? '换弹中…' : 'R 换弹',
+    ammo: weapon ? weapon.getAmmoText() : `${CONFIG.weapon.pistol.magSize} / ${CONFIG.weapon.pistol.magSize}`,
+    ammoHint: weapon ? weapon.getReloadHint() : 'R 换弹',
+    weaponName: weapon ? weapon.getGunDisplay() : '手枪（1）',
   })
   renderer.render(scene, camera)
 }

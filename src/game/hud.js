@@ -9,6 +9,7 @@ export class Hud {
       xp: document.getElementById('xp-fill'),
       ammo: document.getElementById('hud-ammo'),
       weapon: document.getElementById('hud-weapon'),
+      weaponName: document.getElementById('hud-weapon-name'),
       hpNum: document.getElementById('hp-num'),
       xpNum: document.getElementById('xp-num'),
       level: document.getElementById('hud-level'),
@@ -25,6 +26,7 @@ export class Hud {
     this.el.level.textContent = stats.level
     this.el.ammo.textContent = stats.ammoHint
     this.el.weapon.textContent = stats.ammo
+    if (stats.weaponName !== undefined) this.el.weaponName.textContent = stats.weaponName
   }
 
   showLevelUp(choices, onPick) {

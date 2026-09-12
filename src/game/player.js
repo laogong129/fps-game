@@ -26,6 +26,7 @@ export class Player {
     )
     gunBody.position.z = -0.1
     this.gunGroup.add(gunBody)
+    this.gunModel = gunBody
 
     window.addEventListener('keydown', (e) => { this.keys[e.code] = true })
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false })

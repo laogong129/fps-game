@@ -64,13 +64,14 @@ export class LevelUp {
 
   applyChoice(key) {
     if (key === 'speed') this.player.speedMult *= 1.1
-    if (key === 'hp') this.player.healOrGrow(20)
+    else if (key === 'hp') this.player.healOrGrow(20)
+    else if (key === 'shotgun' || key === 'rifle') this.weapon.unlock(key)
     else this.weapon.applyUpgrade(key)
     this.onUpgrade(key)
   }
 
   rollChoices(n = 3) {
-    const pool = [...CONFIG.levelup.choices]
+    const pool = CONFIG.levelup.choices.filter((c) => !c.unlock || !this.weapon.unlocked.has(c.key))
     const out = []
     for (let i = 0; i < n && pool.length; i++) {
       out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0])

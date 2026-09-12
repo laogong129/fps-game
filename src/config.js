@@ -20,13 +20,25 @@ export const CONFIG = {
   },
 
   weapon: {
-    damage: 10,
-    fireInterval: 1.0,
-    magSize: 5,
-    reloadTime: 1.2,
-    muzzleY: 1.5,
+    pistol: { label: '手枪', damage: 30, fireInterval: 1.0, magSize: 8, reloadTime: 1.2 },
+    shotgun: { label: '霰弹枪', damage: 12, pellets: 6, spread: 0.12, fireInterval: 0.9, magSize: 4, reloadTime: 1.6 },
+    rifle: { label: '步枪', damage: 24, fireInterval: 0.2, magSize: 30, reloadTime: 1.8 },
     assistAngle: 14,
     assistRange: 50,
+  },
+
+  gunShape: {
+    pistol: { size: [0.08, 0.08, 0.4], color: 0x333344 },
+    shotgun: { size: [0.1, 0.1, 0.42], color: 0x555566 },
+    rifle: { size: [0.07, 0.09, 0.55], color: 0x39424e },
+  },
+
+  projectile: {
+    radius: 0.25,
+    gravity: 9,
+    speed: 10,
+    playerHitRadius: 0.6,
+    ttl: 4,
   },
 
   enemy: {
@@ -35,7 +47,7 @@ export const CONFIG = {
       size: 0.7,
       color: 0xe74c3c,
       speed: 2.6,
-      hp: 20,
+      hp: 30,
       xp: 1,
     },
     tank: {
@@ -45,6 +57,49 @@ export const CONFIG = {
       speed: 1.2,
       hp: 100,
       xp: 4,
+    },
+    spitter: {
+      label: '喷吐者',
+      size: 1.0,
+      color: 0x2ecc71,
+      speed: 1.4,
+      hp: 40,
+      xp: 2,
+      behavior: 'spitter',
+      fireInterval: 2.5,
+      standRange: 14,
+      projDamage: 10,
+    },
+    splitter: {
+      label: '分裂体',
+      size: 1.2,
+      color: 0xf39c12,
+      speed: 1.8,
+      hp: 60,
+      xp: 3,
+      behavior: 'splitter',
+    },
+    minibug: {
+      label: '小碎片',
+      size: 0.4,
+      color: 0xf5b041,
+      speed: 3.4,
+      hp: 15,
+      xp: 1,
+    },
+    charger: {
+      label: '冲刺者',
+      size: 1.0,
+      color: 0xec2f64,
+      speed: 2.2,
+      hp: 50,
+      xp: 3,
+      behavior: 'charger',
+      telegraphTime: 0.9,
+      chargeSpeed: 11,
+      chargeTime: 0.5,
+      chargeCd: 3.5,
+      standRange: 8,
     },
     maxAlive: 40,
     spawnDistance: [24, 28],
@@ -56,6 +111,12 @@ export const CONFIG = {
     perWaveCount: 6,
     countGrowth: 3,
     hpGrowth: 1.12,
+    table: [
+      { type: 'tank', fromWave: 3, weight: 35 },
+      { type: 'spitter', fromWave: 4, weight: 25 },
+      { type: 'splitter', fromWave: 5, weight: 20 },
+      { type: 'charger', fromWave: 6, weight: 20 },
+    ],
   },
 
   levelup: {
@@ -67,6 +128,8 @@ export const CONFIG = {
       { key: 'mag', name: '弹匣 +3' },
       { key: 'speed', name: '移速 +10%' },
       { key: 'hp', name: '最大生命 +20' },
+      { key: 'shotgun', name: '解锁：霰弹枪', unlock: true },
+      { key: 'rifle', name: '解锁：步枪', unlock: true },
     ],
   },
 

@@ -24,15 +24,31 @@ export const CONFIG = {
   weapon: {
     pistol: { label: '手枪', damage: 30, fireInterval: 1.0, magSize: 8, reloadTime: 1.2 },
     shotgun: { label: '霰弹枪', damage: 12, pellets: 6, spread: 0.12, fireInterval: 0.9, magSize: 4, reloadTime: 1.6 },
-    rifle: { label: '步枪', damage: 24, fireInterval: 0.2, magSize: 30, reloadTime: 1.8 },
+    rifle: { label: '步枪', damage: 24, fireInterval: 0.2, magSize: 30, reloadTime: 1.8, auto: true, adsFov: 42 },
     assistAngle: 14,
     assistRange: 50,
   },
 
+  view: {
+    fov: 75,
+  },
+
   gunShape: {
-    pistol: { size: [0.08, 0.08, 0.4], color: 0x333344 },
-    shotgun: { size: [0.1, 0.1, 0.42], color: 0x555566 },
-    rifle: { size: [0.07, 0.09, 0.55], color: 0x39424e },
+    pistol: [
+      { size: [0.08, 0.08, 0.4], pos: [0, 0, -0.12], color: 0x333344 },
+      { size: [0.06, 0.1, 0.07], pos: [0, -0.09, -0.2], color: 0x2a2a35 },
+    ],
+    shotgun: [
+      { size: [0.1, 0.1, 0.42], pos: [0, 0, -0.14], color: 0x555566 },
+      { size: [0.08, 0.06, 0.3], pos: [0, -0.07, -0.05], color: 0x6b4a2a },
+    ],
+    rifle: [
+      { size: [0.07, 0.09, 0.5], pos: [0, 0, -0.2], color: 0x39424e },
+      { size: [0.045, 0.045, 0.55], pos: [0, 0.005, -0.55], color: 0x2c333d },
+      { size: [0.05, 0.14, 0.08], pos: [0, -0.11, -0.15], color: 0x2c333d },
+      { size: [0.06, 0.08, 0.2], pos: [0, -0.02, 0.12], color: 0x4a3826 },
+      { size: [0.03, 0.03, 0.05], pos: [0, 0.07, -0.45], color: 0x39424e },
+    ],
   },
 
   projectile: {

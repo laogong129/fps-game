@@ -11,6 +11,8 @@ export class WeaponSystem {
     this.active = 'pistol'
     this.kick = 0
     this.tracer = null
+    this.mouseHeld = false
+    this.adsHeld = false
 
     this.flash = new THREE.PointLight(0xffcc66, 0, 6)
     this.flash.position.set(0, 0, -0.4)
@@ -18,8 +20,18 @@ export class WeaponSystem {
     this.updateModel()
 
     window.addEventListener('mousedown', (e) => {
-      if (e.button === 0 && this.player.controls?.isLocked) this.fire()
+      if (!this.player.controls?.isLocked) return
+      if (e.button === 0) {
+        this.mouseHeld = true
+        this.fire()
+      }
+      if (e.button === 2) this.adsHeld = true
     })
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.mouseHeld = false
+      if (e.button === 2) this.adsHeld = false
+    })
+    window.addEventListener('contextmenu', (e) => e.preventDefault())
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyR') this.reload()
       const n = parseInt(e.key, 10)
@@ -43,6 +55,8 @@ export class WeaponSystem {
       ammo: d.magSize,
       pellets: d.pellets || 1,
       spread: d.spread || 0,
+      auto: !!d.auto,
+      adsFov: d.adsFov || 0,
       reloading: false,
       reloadTimer: 0,
       fireTimer: 0,
@@ -73,16 +87,19 @@ export class WeaponSystem {
     const old = this.player.gunModel
     if (old) {
       this.player.gunGroup.remove(old)
-      old.geometry.dispose()
+      old.traverse((o) => o.isMesh && o.geometry.dispose())
     }
-    const s = CONFIG.gunShape[this.active]
-    const m = new THREE.Mesh(
-      new THREE.BoxGeometry(...s.size),
-      new THREE.MeshStandardMaterial({ color: s.color })
-    )
-    m.position.z = -0.12
-    this.player.gunGroup.add(m)
-    this.player.gunModel = m
+    const group = new THREE.Group()
+    for (const part of CONFIG.gunShape[this.active]) {
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(...part.size),
+        new THREE.MeshStandardMaterial({ color: part.color })
+      )
+      m.position.set(...part.pos)
+      group.add(m)
+    }
+    this.player.gunGroup.add(group)
+    this.player.gunModel = group
   }
 
   fire() {
@@ -194,14 +211,29 @@ export class WeaponSystem {
     this.callbacks.onShot()
   }
 
+  updateAds(dt) {
+    const g = this.gun
+    const target = this.adsHeld && g.adsFov ? g.adsFov : CONFIG.view.fov
+    this.player.camera.fov += (target - this.player.camera.fov) * Math.min(1, dt * 10)
+    this.player.camera.updateProjectionMatrix()
+  }
+
   update(dt) {
     const g = this.gun
+    if (g.auto && this.mouseHeld) this.fire()
+    this.updateAds(dt)
     if (g.fireTimer > 0) g.fireTimer -= dt
+    const ads = this.adsHeld && g.adsFov
+    const targetY = ads ? -0.18 : -0.4
+    const targetX = ads ? 0 : 0.25
+    this.player.gunGroup.position.x += (targetX - this.player.gunGroup.position.x) * Math.min(1, dt * 12)
+    this.player.gunGroup.position.y += (targetY - this.player.gunGroup.position.y) * Math.min(1, dt * 12)
+    const targetZ = -0.5
     if (this.kick > 0) {
       this.kick = Math.max(0, this.kick - dt / 0.08)
-      this.player.gunGroup.position.z = -0.5 + this.kick * 0.12
+      this.player.gunGroup.position.z = targetZ + this.kick * 0.12
     } else {
-      this.player.gunGroup.position.z = -0.5
+      this.player.gunGroup.position.z += (targetZ - this.player.gunGroup.position.z) * Math.min(1, dt * 12)
     }
     this.flash.intensity = Math.max(0, this.flash.intensity - dt * 40)
     if (g.reloading) {

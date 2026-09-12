@@ -12,11 +12,17 @@ export class LevelUp {
     this.level = 1
     this.xpNext = CONFIG.levelup.xpForLevel
     this.pickups = []
+    this.heals = []
     this.pickupGeo = new THREE.SphereGeometry(CONFIG.pickup.radius, 12, 12)
     this.pickupMat = new THREE.MeshStandardMaterial({
       color: 0xf1c40f,
       emissive: 0x8a6d00,
     })
+    this.healGeo = new THREE.SphereGeometry(1, 12, 12)
+    this.healMats = {
+      small: new THREE.MeshStandardMaterial({ color: CONFIG.heal.small.color, emissive: 0x551111 }),
+      tank: new THREE.MeshStandardMaterial({ color: CONFIG.heal.tank.color, emissive: 0x554400 }),
+    }
   }
 
   gainXp(amount, pos) {
@@ -31,6 +37,40 @@ export class LevelUp {
     m.position.z += (Math.random() - 0.5) * 1.2
     this.scene.add(m)
     this.pickups.push(m)
+  }
+
+  spawnHeal(kind, pos) {
+    const def = CONFIG.heal[kind]
+    const m = new THREE.Mesh(this.healGeo, this.healMats[kind])
+    m.scale.setScalar(def.radius)
+    m.position.copy(pos)
+    m.position.y = 0.6
+    this.scene.add(m)
+    this.heals.push({ mesh: m, kind })
+  }
+
+  updateHeals(dt, playerPos, onHealFloat) {
+    const pp = playerPos.clone()
+    pp.y = 0
+    for (let i = this.heals.length - 1; i >= 0; i--) {
+      const h = this.heals[i]
+      const pc = h.mesh.position.clone()
+      pc.y = 0
+      const d = pp.distanceTo(pc)
+      if (d < CONFIG.pickup.collectRange) {
+        const before = this.player.hp
+        const value = CONFIG.heal[h.kind].value
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + value)
+        onHealFloat(h.mesh.position, this.player.hp - before)
+        this.scene.remove(h.mesh)
+        this.heals.splice(i, 1)
+      }
+    }
+  }
+
+  clearHeals() {
+    for (const h of this.heals) this.scene.remove(h.mesh)
+    this.heals.length = 0
   }
 
   update(dt, playerPos) {
@@ -59,12 +99,15 @@ export class LevelUp {
     this.xp -= this.xpNext
     this.xpNext = Math.floor(this.xpNext * CONFIG.levelup.xpGrowth)
     this.level++
+    const gain = CONFIG.player.hpPerLevel
+    this.player.healOrGrow(gain)
+    this.player.hp = this.player.maxHp
     this.onLevelUp(this.level)
   }
 
   applyChoice(key) {
     if (key === 'speed') this.player.speedMult *= 1.1
-    else if (key === 'hp') this.player.healOrGrow(20)
+    else if (key === 'hp') this.player.healOrGrow(CONFIG.levelup.hpBoost)
     else if (key === 'shotgun' || key === 'rifle') this.weapon.unlock(key)
     else this.weapon.applyUpgrade(key)
     this.onUpgrade(key)

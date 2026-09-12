@@ -14,6 +14,8 @@ export class Player {
     this.speedMult = 1
     this.keys = {}
     this.invulnTimer = 0
+    this.yVel = 0
+    this.jumpQueued = false
 
     this.gunGroup = new THREE.Group()
     this.gunGroup.position.set(0.25, -0.4, -0.5)
@@ -28,7 +30,10 @@ export class Player {
     this.gunGroup.add(gunBody)
     this.gunModel = gunBody
 
-    window.addEventListener('keydown', (e) => { this.keys[e.code] = true })
+    window.addEventListener('keydown', (e) => {
+      this.keys[e.code] = true
+      if (e.code === 'Space') this.jumpQueued = true
+    })
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false })
     domElement.addEventListener('click', () => this.controls?.lock())
   }
@@ -76,6 +81,17 @@ export class Player {
       if (d > 0.001 && d < min) {
         this.pos.x += (dx / d) * (min - d)
         this.pos.z += (dz / d) * (min - d)
+      }
+    }
+    const grounded = this.pos.y <= p.height
+    if (this.jumpQueued && grounded) this.yVel = p.jump.velocity
+    this.jumpQueued = false
+    if (this.pos.y > p.height || this.yVel > 0) {
+      this.yVel -= p.jump.gravity * dt
+      this.pos.y += this.yVel * dt
+      if (this.pos.y <= p.height) {
+        this.pos.y = p.height
+        this.yVel = 0
       }
     }
     this.pos.x = THREE.MathUtils.clamp(this.pos.x, -inner + p.radius, inner - p.radius)

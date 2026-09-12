@@ -54,7 +54,9 @@ function moveToward(e, playerPos, dt, inner, others) {
   const dist = dir.length()
   if (dist > 0.1) {
     const step = e.def.speed * dt
-    const target = dist < step ? playerPos : e.group.position.clone().add(dir.normalize().multiplyScalar(step))
+    const ground = playerPos.clone()
+    ground.y = 0
+    const target = dist < step ? ground : e.group.position.clone().add(dir.normalize().multiplyScalar(step))
     e.group.position.lerp(target, 1)
   }
   for (const o of others) {

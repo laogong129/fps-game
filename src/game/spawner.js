@@ -99,7 +99,7 @@ export class Spawner {
       const c = enemyCenter(e)
       const dx = c.x - playerPos.x
       const dz = c.z - playerPos.z
-      if (Math.hypot(dx, dz) < p.contactRadius + e.def.size / 2) {
+      if (Math.hypot(dx, dz) < p.contactRadius + e.def.size / 2 && playerPos.y <= p.height + 0.5) {
         if (this.events.onContact(e.def)) {
           if (this.events.onHurt) this.events.onHurt(p.damageFromEnemy, playerPos)
         }
@@ -118,13 +118,8 @@ export class Spawner {
       pr.life -= dt
       const d = pr.mesh.position.distanceTo(pcenter)
       if (d < pc.playerHitRadius + pc.radius) {
-        if (this.events.onContact(null)) {
-          if (this.events.onHurt) this.events.onHurt(pr.damage, pr.mesh.position)
-          this.removeProjectile(i)
-          continue
-        }
-      }
-      if (pr.life <= 0 || pr.mesh.position.y <= 0) this.removeProjectile(i)
+        if (this.events.onProjectileHit(pr)) this.removeProjectile(i)
+      } else if (pr.life <= 0 || pr.mesh.position.y <= 0) this.removeProjectile(i)
     }
   }
 

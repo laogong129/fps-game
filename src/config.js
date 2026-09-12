@@ -14,9 +14,11 @@ export const CONFIG = {
     moveSpeed: 6,
     sprintMult: 1.6,
     maxHp: 100,
+    hpPerLevel: 5,
     damageFromEnemy: 15,
     contactRadius: 1.2,
     invulnAfterHit: 0.5,
+    jump: { velocity: 5.4, gravity: 18 },
   },
 
   weapon: {
@@ -122,6 +124,7 @@ export const CONFIG = {
   levelup: {
     xpForLevel: 10,
     xpGrowth: 1.5,
+    hpBoost: 20,
     choices: [
       { key: 'damage', name: '伤害 +5' },
       { key: 'rof', name: '射速 +20%' },
@@ -137,6 +140,11 @@ export const CONFIG = {
     radius: 0.35,
     magnetRange: 3.0,
     collectRange: 1.0,
+  },
+
+  heal: {
+    small: { value: 15, chance: 0.2, color: 0xe74c3c, radius: 0.45 },
+    tank: { value: 60, chance: 1.0, color: 0xffd700, radius: 0.6 },
   },
 }
 

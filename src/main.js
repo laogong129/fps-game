@@ -39,9 +39,17 @@ function buildWorld() {
     onEnemyKilled: (dead) => {
       kills++
       levelup.gainXp(dead.def.xp, dead.group.position)
+      const pos = dead.group.position
+      if (dead.type === 'tank') levelup.spawnHeal('tank', pos)
+      else if (Math.random() < CONFIG.heal.small.chance) levelup.spawnHeal('small', pos)
     },
     onDamage: (dmg, pos) => floats.spawn(`-${dmg}`, pos, '#ffd24a'),
     onHurt: (dmg, pos) => floats.spawn(`-${dmg}`, pos, '#ff4444'),
+    onProjectileHit: (pr) => {
+      if (!player.takeDamage(pr.damage)) return false
+      floats.spawn(`-${pr.damage}`, pr.mesh.position, '#ff4444')
+      return true
+    },
   })
   weapon = new WeaponSystem(scene, player, {
     getEnemies: () => spawner.getMeshes(),
@@ -68,6 +76,7 @@ function resetStats() {
   spawner.waveTimer = 5
   spawner.toSpawn = 0
   levelup.clearPickups()
+  levelup.clearHeals()
   levelup.xp = 0
   levelup.level = 1
   levelup.xpNext = CONFIG.levelup.xpForLevel
@@ -75,6 +84,8 @@ function resetStats() {
   player.maxHp = CONFIG.player.maxHp
   player.speedMult = 1
   player.pos.set(0, CONFIG.player.height, 0)
+  player.yVel = 0
+  player.jumpQueued = false
   weapon.resetUpgrades()
   camera.position.set(0, CONFIG.player.height, 0)
   camera.quaternion.identity()
@@ -165,6 +176,7 @@ function loop() {
     weapon.update(dt)
     spawner.update(dt, player.pos, arena.halfSize - 0.5)
     levelup.update(dt, player.pos)
+    levelup.updateHeals(dt, player.pos, (pos, amt) => floats.spawn(`+${Math.ceil(amt)}`, pos, '#44ff88'))
     floats.update(dt)
     if (player.hp <= 0) onGameOver()
   } else if (state === 'levelup') {

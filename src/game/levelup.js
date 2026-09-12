@@ -74,6 +74,11 @@ export class LevelUp {
     return out
   }
 
+  clearPickups() {
+    for (const p of this.pickups) this.scene.remove(p)
+    this.pickups.length = 0
+  }
+
   getHudData() {
     return { xp: this.xp, xpNext: this.xpNext, level: this.level }
   }

@@ -41,7 +41,7 @@ function buildWorld() {
   })
   levelup = new LevelUp(scene, player, weapon, () => {}, () => {})
   weapon = new Weapon(scene, player, {
-    getEnemies: () => spawner.getMeshes(),
+    getEnemies: () => spawner.getGroups(),
     onHit: (mesh, dmg) => spawner.onShotHit(mesh, dmg),
     onShot: () => {},
   })
@@ -60,9 +60,11 @@ function buildWorld() {
 function resetStats() {
   kills = 0
   elapsed = 0
+  spawner.clear()
   spawner.wave = 1
   spawner.waveTimer = 5
   spawner.toSpawn = 0
+  levelup.clearPickups()
   levelup.xp = 0
   levelup.level = 1
   levelup.xpNext = CONFIG.levelup.xpForLevel
@@ -113,9 +115,9 @@ function loop() {
 
   if (state === 'playing') {
     elapsed += dt
-    player.update(dt, arena.halfSize, false)
+    player.update(dt, arena.halfSize, spawner.getGroups(), false)
     weapon.update(dt)
-    spawner.update(dt, player.pos)
+    spawner.update(dt, player.pos, arena.halfSize - 0.5)
     levelup.update(dt, player.pos)
     if (player.hp <= 0) onGameOver()
   } else if (state === 'levelup') {

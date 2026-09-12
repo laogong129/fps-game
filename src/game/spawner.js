@@ -1,5 +1,5 @@
 import { CONFIG, waveSpawnCount, waveHpMultiplier } from '../config.js'
-import { createEnemy, updateEnemy, damageEnemy } from './enemy.js'
+import { createEnemy, updateEnemy, damageEnemy, enemyCenter } from './enemy.js'
 
 export class Spawner {
   constructor(scene, events) {
@@ -10,11 +10,11 @@ export class Spawner {
     this.waveTimer = 5
     this.toSpawn = 0
     this.spawnTimer = 0
-    this.spawnInterval = 1.5
+    this.spawnInterval = 1.2
   }
 
-  getMeshes() {
-    return this.enemies.map((e) => e.body)
+  getGroups() {
+    return this.enemies.map((e) => e.group)
   }
 
   startWave() {
@@ -24,7 +24,7 @@ export class Spawner {
     this.waveTimer = CONFIG.wave.baseInterval
   }
 
-  update(dt, playerPos) {
+  update(dt, playerPos, inner) {
     this.waveTimer -= dt
     if (this.waveTimer <= 0 && this.toSpawn === 0) this.startWave()
     if (this.toSpawn > 0) {
@@ -34,15 +34,15 @@ export class Spawner {
         this.spawnOne()
       }
     }
-    const half = 30
+    const p = CONFIG.player
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i]
-      updateEnemy(e, playerPos, dt, this.events.camera)
-      const dist = e.group.position.distanceTo(playerPos)
-      if (dist < CONFIG.player.contactRadius + e.def.size / 2) {
-        if (this.events.onContact(e.def)) {
-          this.enemies.splice(i, 1)
-        }
+      updateEnemy(e, playerPos, dt, this.events.camera, inner, this.enemies)
+      const c = enemyCenter(e)
+      const dx = c.x - playerPos.x
+      const dz = c.z - playerPos.z
+      if (Math.hypot(dx, dz) < p.contactRadius + e.def.size / 2) {
+        if (this.events.onContact(e.def)) this.enemies.splice(i, 1)
       }
     }
   }
@@ -57,16 +57,21 @@ export class Spawner {
     this.enemies.push(e)
   }
 
-  onShotHit(mesh, damage) {
-    for (let i = 0; i < this.enemies.length; i++) {
-      if (this.enemies[i].body === mesh) {
-        if (damageEnemy(this.enemies[i], damage, this.scene)) {
-          const dead = this.enemies.splice(i, 1)[0]
-          this.events.onEnemyKilled(dead, dead.type)
-        }
-        return
-      }
+  onShotHit(group, damage) {
+    if (!group) return
+    const i = this.enemies.findIndex((e) => e.group === group)
+    if (i < 0) return
+    if (damageEnemy(this.enemies[i], damage, this.scene)) {
+      const dead = this.enemies.splice(i, 1)[0]
+      this.events.onEnemyKilled(dead, dead.type)
     }
+  }
+
+  clear() {
+    for (const e of this.enemies) {
+      this.scene.remove(e.group)
+    }
+    this.enemies.length = 0
   }
 
   get waveNumber() {

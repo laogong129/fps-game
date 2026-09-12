@@ -17,9 +17,9 @@ export function createEnemy(type, hpMultiplier, scene) {
     new THREE.MeshBasicMaterial({ color: 0x22cc44 })
   )
   hpBar.position.y = def.size + 0.3
-  hpBar.quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0)
   group.add(hpBar)
-
+  group.userData.enemyGroup = true
+  group.userData.centerHeight = def.size / 2
   scene.add(group)
   const hp = def.hp * hpMultiplier
   return {
@@ -33,17 +33,37 @@ export function createEnemy(type, hpMultiplier, scene) {
   }
 }
 
-export function updateEnemy(enemy, target, dt, camera) {
-  const dir = target.clone().sub(enemy.group.position)
+export function updateEnemy(enemy, playerPos, dt, camera, inner, others) {
+  const half = enemy.def.size / 2
+  const dir = playerPos.clone().sub(enemy.group.position)
   dir.y = 0
   const dist = dir.length()
   if (dist > 0.1) {
-    enemy.group.position.add(dir.normalize().multiplyScalar(enemy.def.speed * dt))
+    const step = enemy.def.speed * dt
+    const target = dist < step ? playerPos : enemy.group.position.clone().add(dir.normalize().multiplyScalar(step))
+    enemy.group.position.lerp(target, 1)
+    for (const o of others) {
+      if (o === enemy) continue
+      const push = enemy.group.position.clone().sub(o.group.position)
+      push.y = 0
+      const d = push.length()
+      const min = CONFIG.enemy.separation
+      if (d > 0.001 && d < min) {
+        enemy.group.position.add(push.normalize().multiplyScalar((min - d) / 2))
+      }
+    }
+    enemy.group.position.x = THREE.MathUtils.clamp(enemy.group.position.x, -inner + half, inner - half)
+    enemy.group.position.z = THREE.MathUtils.clamp(enemy.group.position.z, -inner + half, inner - half)
   }
   enemy.hpBar.quaternion.copy(camera.quaternion)
   const ratio = Math.max(0, enemy.hp / enemy.maxHp)
   enemy.hpBar.scale.x = ratio
-  enemy.hpBar.position.x = 0
+}
+
+export function enemyCenter(enemy) {
+  return enemy.group.position.clone().add(
+    new THREE.Vector3(0, enemy.group.userData.centerHeight, 0)
+  )
 }
 
 export function damageEnemy(enemy, amount, scene) {

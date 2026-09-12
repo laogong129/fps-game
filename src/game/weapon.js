@@ -33,16 +33,21 @@ export class Weapon {
     this.fireTimer = this.fireInterval
     const from = this.player.gunGroup.getWorldPosition(new THREE.Vector3())
     const dir = this.player.camera.getWorldDirection(new THREE.Vector3())
-    const ray = new THREE.Raycaster(from.clone(), dir, 0, 200)
+    const ray = new THREE.Raycaster(from, dir, 0, 200)
     const targets = this.callbacks.getEnemies()
-    const hits = ray.intersectObjects(targets, false)
-    let endPoint
-    if (hits.length > 0) {
-      const hit = hits[0]
-      endPoint = hit.point
-      this.callbacks.onHit(hit.object, this.damage)
+    let endPoint = null
+    const hitList = ray.intersectObjects(targets, true)
+    if (hitList.length > 0) {
+      endPoint = hitList[0].point
+      this.callbacks.onHit(this.findEnemyRoot(hitList[0].object), this.damage)
     } else {
-      endPoint = from.clone().add(dir.clone().multiplyScalar(100))
+      const assist = this.aimAssist(from, dir, targets)
+      if (assist) {
+        endPoint = assist.point
+        this.callbacks.onHit(assist.root, this.damage)
+      } else {
+        endPoint = from.clone().add(dir.clone().multiplyScalar(100))
+      }
     }
     this.tracer = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([from, endPoint]),
@@ -51,6 +56,34 @@ export class Weapon {
     this.tracer.userData.life = 0.05
     this.scene.add(this.tracer)
     this.callbacks.onShot()
+  }
+
+  findEnemyRoot(obj) {
+    let o = obj
+    while (o) {
+      if (o.userData.enemyGroup) return o
+      o = o.parent
+    }
+    return null
+  }
+
+  aimAssist(from, dir, targets) {
+    const cos = Math.cos(THREE.MathUtils.degToRad(CONFIG.weapon.assistAngle))
+    let best = null
+    let bestDot = cos
+    for (const t of targets) {
+      if (!t.userData.enemyGroup) continue
+      const to = t.position.clone().sub(from)
+      const d = to.length()
+      if (d > 50 || d < 0.5) continue
+      to.normalize()
+      const dot = to.dot(dir)
+      if (dot > bestDot) {
+        bestDot = dot
+        best = { root: t, point: from.clone().add(dir.clone().multiplyScalar(d)) }
+      }
+    }
+    return best
   }
 
   reload() {

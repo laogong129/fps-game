@@ -50,12 +50,13 @@ export class Player {
     return new THREE.Vector3(-f.z, 0, f.x)
   }
 
-  update(dt, arenaHalf, paused) {
+  update(dt, inner, enemyGroups, paused) {
     if (paused || !this.controls?.isLocked) return
     if (this.invulnTimer > 0) this.invulnTimer -= dt
 
     const p = CONFIG.player
-    const speed = this.moveSpeed * this.speedMult
+    const sprinting = this.keys['ShiftLeft'] || this.keys['ShiftRight']
+    const speed = this.moveSpeed * this.speedMult * (sprinting ? CONFIG.player.sprintMult : 1)
     const move = new THREE.Vector3()
     if (this.keys['KeyW']) move.add(this.forward)
     if (this.keys['KeyS']) move.sub(this.forward)
@@ -64,9 +65,20 @@ export class Player {
     if (move.lengthSq() > 0) {
       move.normalize().multiplyScalar(speed * dt)
       this.pos.add(move)
-      this.pos.x = THREE.MathUtils.clamp(this.pos.x, -arenaHalf + p.radius, arenaHalf - p.radius)
-      this.pos.z = THREE.MathUtils.clamp(this.pos.z, -arenaHalf + p.radius, arenaHalf - p.radius)
     }
+    for (const g of enemyGroups) {
+      const r = g.userData.centerHeight + 0.3
+      const dx = this.pos.x - g.position.x
+      const dz = this.pos.z - g.position.z
+      const d = Math.hypot(dx, dz)
+      const min = p.radius + r
+      if (d > 0.001 && d < min) {
+        this.pos.x += (dx / d) * (min - d)
+        this.pos.z += (dz / d) * (min - d)
+      }
+    }
+    this.pos.x = THREE.MathUtils.clamp(this.pos.x, -inner + p.radius, inner - p.radius)
+    this.pos.z = THREE.MathUtils.clamp(this.pos.z, -inner + p.radius, inner - p.radius)
     this.camera.position.copy(this.pos)
   }
 

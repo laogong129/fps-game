@@ -12,6 +12,7 @@ export const CONFIG = {
     height: 1.7,
     radius: 0.5,
     moveSpeed: 6,
+    sprintMult: 1.6,
     maxHp: 100,
     damageFromEnemy: 15,
     contactRadius: 1.2,
@@ -24,6 +25,7 @@ export const CONFIG = {
     magSize: 5,
     reloadTime: 1.2,
     muzzleY: 1.5,
+    assistAngle: 3,
   },
 
   enemy: {
@@ -44,7 +46,8 @@ export const CONFIG = {
       xp: 4,
     },
     maxAlive: 40,
-    spawnDistance: [25, 38],
+    spawnDistance: [24, 28],
+    separation: 0.9,
   },
 
   wave: {

@@ -22,10 +22,10 @@ export function createArena(scene) {
   const wallMat = new THREE.MeshStandardMaterial({ color: wallColor })
   const wallGeo = new THREE.BoxGeometry(size, wallHeight, 0.5)
   for (const [x, z, rz] of [
-    [0, -size / 2, 0, 0],
-    [0, size / 2, 0, 0],
-    [-size / 2, 0, 0, Math.PI / 2],
-    [size / 2, 0, 0, Math.PI / 2],
+    [0, -size / 2, 0],
+    [0, size / 2, 0],
+    [-size / 2, 0, Math.PI / 2],
+    [size / 2, 0, Math.PI / 2],
   ]) {
     const wall = new THREE.Mesh(wallGeo, wallMat)
     wall.position.set(x, wallHeight / 2, z)

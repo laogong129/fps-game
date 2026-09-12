@@ -30,11 +30,13 @@ export class LevelUp {
   }
 
   spawnPickup(pos) {
+    if (this.pickups.length >= CONFIG.pickup.maxOrbs) return
     const m = new THREE.Mesh(this.pickupGeo, this.pickupMat)
     m.position.copy(pos)
     m.position.y = 0.5
     m.position.x += (Math.random() - 0.5) * 1.2
     m.position.z += (Math.random() - 0.5) * 1.2
+    m.userData.age = 0
     this.scene.add(m)
     this.pickups.push(m)
   }
@@ -76,21 +78,31 @@ export class LevelUp {
   update(dt, playerPos) {
     const pp = playerPos.clone()
     pp.y = 0
+    const { magnetRange, collectRange, maxOrbs } = CONFIG.pickup
+    let total = this.pickups.length
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const p = this.pickups[i]
+      p.userData.age += dt
+      if (total > maxOrbs && p.userData.age > 2) {
+        this.scene.remove(p)
+        this.pickups.splice(i, 1)
+        total--
+        continue
+      }
       const pc = p.position.clone()
       pc.y = 0
       const toPlayer = pp.sub(pc)
       const dist = toPlayer.length()
-      const { magnetRange, collectRange } = CONFIG.pickup
       if (dist < collectRange) {
         this.scene.remove(p)
         this.pickups.splice(i, 1)
+        total--
         this.xp += 1
         if (this.xp >= this.xpNext) this.levelUp()
       } else if (dist < magnetRange) {
-        p.position.add(toPlayer.normalize().multiplyScalar(8 * dt))
-        p.position.y += (0.5 - p.position.y) * 0.1
+        const pull = 10 + (1 - dist / magnetRange) * 26
+        p.position.addScaledVector(toPlayer, pull * dt / dist)
+        p.position.y += (0.5 - p.position.y) * 0.15
       }
     }
   }

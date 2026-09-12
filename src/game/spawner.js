@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { CONFIG, waveSpawnCount, waveHpMultiplier } from '../config.js'
+import { CONFIG, waveSpawnCount } from '../config.js'
 import {
   createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy,
 } from './enemy.js'
@@ -134,7 +134,7 @@ export class Spawner {
     const type = this.pickType()
     const angle = Math.random() * Math.PI * 2
     const dist = CONFIG.enemy.spawnDistance[0] + Math.random() * (CONFIG.enemy.spawnDistance[1] - CONFIG.enemy.spawnDistance[0])
-    const e = createEnemy(type, waveHpMultiplier(this.wave), this.scene)
+    const e = createEnemy(type, 1, this.scene)
     e.group.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist)
     this.enemies.push(e)
   }

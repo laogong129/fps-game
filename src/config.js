@@ -14,7 +14,7 @@ export const CONFIG = {
     moveSpeed: 6,
     sprintMult: 1.6,
     maxHp: 100,
-    hpPerLevel: 5,
+    hpPerLevel: 10,
     damageFromEnemy: 15,
     contactRadius: 1.2,
     invulnAfterHit: 0.5,
@@ -163,8 +163,9 @@ export const CONFIG = {
 
   pickup: {
     radius: 0.35,
-    magnetRange: 5.0,
-    collectRange: 1.0,
+    magnetRange: 6.0,
+    collectRange: 1.2,
+    maxOrbs: 60,
   },
 
   crate: {

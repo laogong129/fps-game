@@ -7,6 +7,7 @@ import { Spawner } from './game/spawner.js'
 import { LevelUp } from './game/levelup.js'
 import { Hud } from './game/hud.js'
 import { FloatingText } from './game/text.js'
+import { playShot, playHit, playReload, playLevelUp } from './game/sound.js'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
@@ -65,13 +66,18 @@ function buildWorld() {
   })
   weapon = new WeaponSystem(scene, player, {
     getEnemies: () => spawner.getMeshes(),
-    onHit: (mesh, dmg) => spawner.onShotHit(mesh, dmg),
-    onShot: () => {},
+    onHit: (mesh, dmg) => {
+      spawner.onShotHit(mesh, dmg)
+      playHit()
+    },
+    onShot: () => playShot(weapon.active),
+    onReload: () => playReload(),
   })
   levelup = new LevelUp(scene, player, weapon, () => {}, () => {})
   levelup.onLevelUp = (lvl) => {
     state = 'levelup'
     player.controls.unlock()
+    playLevelUp()
     hud.showLevelUp(levelup.rollChoices(3), (key) => {
       levelup.applyChoice(key)
       state = 'playing'

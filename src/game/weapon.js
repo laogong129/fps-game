@@ -208,7 +208,7 @@ export class WeaponSystem {
     if (g.reloading || g.ammo === g.magSize) return
     g.reloading = true
     g.reloadTimer = g.reloadTime
-    this.callbacks.onShot()
+    this.callbacks.onReload?.()
   }
 
   updateAds(dt) {

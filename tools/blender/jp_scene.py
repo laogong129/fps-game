@@ -46,6 +46,11 @@ M = {
     "trunk": mat("trunk", (0.24, 0.17, 0.13), rough=0.95),
     "petal": mat("petal", (0.92, 0.62, 0.72), rough=0.9),
     "petal2": mat("petal2", (0.95, 0.75, 0.80), rough=0.9),
+    "moss": mat("moss", (0.30, 0.45, 0.25), rough=1.0),
+    "paper": mat("paper", (0.95, 0.93, 0.85), rough=0.9),
+    "rope": mat("rope", (0.75, 0.55, 0.25), rough=0.9),
+    "fox": mat("fox", (0.42, 0.40, 0.38), rough=0.95),
+    "water": mat("water", (0.15, 0.35, 0.35), rough=0.2),
 }
 
 def box(name, m, size, loc, rot=(0, 0, 0)):
@@ -96,6 +101,7 @@ for i, z in enumerate([-6, -12, -18]):
 box("toriiBase", M["stone"], (14, 3.5, 0.3), (0, -22, 0.15))
 for s in (-1, 1):
     cyl(f"toriiPillar{s}", M["torii"], 0.45, 6, (s * 4.5, -22, 3))
+    cyl(f"toriiPillarBase{s}", M["stone"], 0.65, 0.4, (s * 4.5, -22, 0.2))
     obstacles.append({"x": s * 4.5, "z": -22, "r": 0.8})
 box("toriiNuki", M["torii"], (10.5, 1.0, 0.7), (0, -22, 4.4))
 box("toriiKasagi", M["torii"], (12.0, 1.7, 0.5), (0, -22, 5.5))
@@ -111,9 +117,49 @@ box("shrineBody", M["shrineWall"], (6.2, 4.2, 2.0), (-16, -10, 1.6))
 box("shrineWindowF", M["window"], (3.0, 0.1, 1.4), (-16, -7.75, 1.5))
 box("shrineWindowL", M["window"], (0.1, 2.4, 1.4), (-19.05, -10, 1.5))
 box("shrineLintel", M["torii"], (7.4, 5.4, 0.4), (-16, -10, 2.8))
-pyr("shrineRoof", M["roofTile"], 5.4, 1.9, (-16, -10, 3.9))
+# 二段屋根
+box("shrineRoof1", M["roofTile"], (9.6, 7.6, 0.3), (-16, -10, 3.1))
+box("shrineRoof2", M["roofTile"], (6.8, 5.2, 0.3), (-16, -10, 4.0))
+pyr("shrineRoofTop", M["roofTile"], 4.4, 1.4, (-16, -10, 4.85))
+# 注连绳 + 纸垂
+box("shimenawa", M["rope"], (0.3, 0.3, 5.0), (-16, -7.4, 2.3))
+for i in range(5):
+    z = -9.8 + i * 1.2
+    box(f"shide{i}", M["paper"], (0.12, 0.5, 0.9), (-16 + 0.25, z, 1.75), rot=(0.15, 0, 0))
+    box(f"shide2_{i}", M["paper"], (0.12, 0.4, 0.8), (-16 - 0.25, z + 0.6, 1.8), rot=(-0.15, 0, 0))
+# 石段（面向 +z）
+for i in range(3):
+    box(f"shrineStep{i}", M["stone"], (4.0 - i * 0.8, 1.2, 0.18), (-16, -7.2 + i * 1.1, 0.1 + i * 0.22))
 obstacles.append({"x": -16, "z": -10, "r": 5.0})
 LIGHTS.append([-16, -10, 1.8])
+
+# 手水钵 ×2（神社正面前）
+for i, (tx, tz) in enumerate([(-19, -4.5), (-13, -4.5)]):
+    cyl(f"basin{i}A", M["stoneGray"], 0.7, 0.15, (tx, tz, 0.45))
+    cyl(f"basin{i}B", M["stoneGray"], 0.55, 0.5, (tx, tz, 0.75))
+    cyl(f"basin{i}W", M["water"], 0.42, 0.05, (tx, tz, 0.99))
+    obstacles.append({"x": tx, "z": tz, "r": 0.7})
+
+# 狐石像 ×2（神社旁，坐狐造型：身体+头+尖耳）
+for i, (tx, tz) in enumerate([(-21, -6.5), (-11, -6.5)]):
+    box(f"foxStatueBody{i}", M["fox"], (0.7, 1.0, 1.1), (tx, tz, 0.9))
+    ico(f"foxHead{i}", M["fox"], 0.4, (tx, tz, 1.75))
+    box(f"foxEarL{i}", M["fox"], (0.15, 0.1, 0.35), (tx - 0.2, tz, 2.1))
+    box(f"foxEarR{i}", M["fox"], (0.15, 0.1, 0.35), (tx + 0.2, tz, 2.1))
+    box(f"foxStone{i}", M["stone"], (1.4, 1.4, 0.3), (tx, tz, 0.15))
+    obstacles.append({"x": tx, "z": tz, "r": 0.7})
+
+# 苔藓圆垫（点缀地面，无碰撞）
+for i, (mx, mz, r) in enumerate([(-8, -20, 0.9), (8, 12, 1.1), (-20, 14, 0.8), (22, -2, 0.9), (0, 14, 0.7)]):
+    c = cyl(f"moss{i}", M["moss"], r, 0.06, (mx, mz, 0.06))
+    c.scale = (1, 1, 0.5)
+    bpy.ops.object.transform_apply(scale=True)
+
+# 石灯笼旁石凳（鸟居右）
+box("stoneBench", M["stone"], (2.2, 0.8, 0.5), (12, -18, 0.25))
+cyl("stoneBenchLegA", M["stone"], 0.18, 0.5, (11, -18.3, 0.25))
+cyl("stoneBenchLegB", M["stone"], 0.18, 0.5, (13, -18.3, 0.25))
+obstacles.append({"x": 12, "z": -18, "r": 1.0})
 
 # 小鸟居（16,-8）
 for s in (-1, 1):
@@ -127,7 +173,9 @@ houses = [(-20, 10), (20, 4), (-6, 20)]
 for i, (hx, hz) in enumerate(houses):
     box(f"houseBody{i}", M["woodDark"], (5, 4, 3), (hx, hz, 1.5))
     box(f"houseWin{i}", M["window"], (2.0, 0.15, 1.3), (hx, hz + 2.05, 1.5))
-    pyr(f"houseRoof{i}", M["roofTile"], 4.0, 1.8, (hx, hz, 4.0))
+    box(f"housePaper{i}", M["paper"], (5.2, 0.12, 1.0), (hx, hz + 2.06, 2.8))
+    box(f"houseRoof1{i}", M["roofTile"], (6.6, 5.6, 0.25), (hx, hz, 3.4))
+    pyr(f"houseRoof2{i}", M["roofTile"], 3.4, 1.6, (hx, hz, 4.4))
     obstacles.append({"x": hx, "z": hz, "r": 3.0})
     LIGHTS.append([hx, hz, 2.2])
 

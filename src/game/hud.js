@@ -1,0 +1,49 @@
+import { CONFIG } from '../config.js'
+
+export class Hud {
+  constructor() {
+    this.el = {
+      wave: document.getElementById('hud-wave'),
+      kills: document.getElementById('hud-kills'),
+      hp: document.getElementById('hp-fill'),
+      xp: document.getElementById('xp-fill'),
+      ammo: document.getElementById('hud-ammo'),
+      weapon: document.getElementById('hud-weapon'),
+    }
+  }
+
+  update(stats) {
+    this.el.wave.textContent = stats.wave
+    this.el.kills.textContent = stats.kills
+    this.el.hp.style.width = `${Math.max(0, (stats.hp / stats.maxHp) * 100)}%`
+    this.el.xp.style.width = `${Math.min(100, (stats.xp / stats.xpNext) * 100)}%`
+    this.el.ammo.textContent = stats.ammoHint
+    this.el.weapon.textContent = stats.ammo
+  }
+
+  showLevelUp(choices, onPick) {
+    const wrap = document.getElementById('levelup-choices')
+    wrap.innerHTML = ''
+    document.getElementById('levelup').classList.add('show')
+    for (const c of choices) {
+      const div = document.createElement('div')
+      div.className = 'choice'
+      div.textContent = c.name
+      div.onclick = () => {
+        document.getElementById('levelup').classList.remove('show')
+        onPick(c.key)
+      }
+      wrap.appendChild(div)
+    }
+  }
+
+  showGameOver(stats) {
+    const el = document.getElementById('gameover-stats')
+    el.innerHTML = `到达波次 <b>${stats.wave}</b> ｜ 总击杀 <b>${stats.kills}</b> ｜ 存活 <b>${(stats.time / 60).toFixed(1)}</b> 分钟`
+    document.getElementById('gameover-screen').classList.add('show')
+  }
+
+  hideGameOver() {
+    document.getElementById('gameover-screen').classList.remove('show')
+  }
+}

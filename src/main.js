@@ -116,6 +116,106 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter' && state === 'dead') startGame()
 })
 
+if (location.search.includes('autobattle')) {
+  setTimeout(async () => {
+    const report = (line) => {
+      console.log(`AUTOBATTLE:${line}`)
+      document.title = `AUTOBATTLE:${line}`
+    }
+    try {
+      await startGame()
+      player.controls = { isLocked: true, lock() {}, unlock() {} }
+      levelup.onLevelUp = () => {
+        const c = levelup.rollChoices(1)[0]
+        if (c) levelup.applyChoice(c.key)
+      }
+      state = 'simulating'
+      const dt = 1 / 60
+      const enemyCenterOf = (e) => {
+        const c = e.group.position.clone()
+        c.y += e.group.userData.centerHeight
+        return c
+      }
+      const results = []
+      for (let run = 0; run < 10; run++) {
+        if (run > 0) resetStats()
+        let t = 0
+        let shotCd = 0
+        let reason = 'maxtime'
+        while (t < 600 && player.hp > 0) {
+          let target = null
+          let bestD = Infinity
+          for (const e of spawner.enemies) {
+            const d = enemyCenterOf(e).distanceTo(player.pos)
+            if (d < bestD) { bestD = d; target = e }
+          }
+          if (target) camera.lookAt(enemyCenterOf(target))
+          player.keys['KeyW'] = player.keys['KeyS'] = player.keys['KeyA'] = player.keys['KeyD'] = false
+          let moveDir = null
+          for (const e of spawner.enemies) {
+            const d = e.group.position.distanceTo(player.pos)
+            const threat = e.def.behavior === 'charger' && e.state === 'telegraph' ? 10 : 2.2
+            if (d < threat) {
+              moveDir = player.pos.clone().sub(e.group.position)
+              moveDir.y = 0
+              break
+            }
+          }
+          if (!moveDir && player.hp < player.maxHp * 0.75) {
+            for (const h of levelup.heals) {
+              const d = h.mesh.position.distanceTo(player.pos)
+              if (d < 8) {
+                moveDir = h.mesh.position.clone().sub(player.pos)
+                moveDir.y = 0
+                break
+              }
+            }
+          }
+          if (!moveDir) {
+            for (const p of levelup.pickups) {
+              const d = p.position.distanceTo(player.pos)
+              if (d < 4.5) {
+                moveDir = p.position.clone().sub(player.pos)
+                moveDir.y = 0
+                break
+              }
+            }
+          }
+          if (moveDir && moveDir.lengthSq() > 0.01) {
+            moveDir.normalize()
+            const f = player.forward
+            const r = player.right
+            if (moveDir.dot(f) > 0.3) player.keys['KeyW'] = true
+            if (moveDir.dot(f) < -0.3) player.keys['KeyS'] = true
+            if (moveDir.dot(r) > 0.3) player.keys['KeyD'] = true
+            if (moveDir.dot(r) < -0.3) player.keys['KeyA'] = true
+          }
+          player.update(dt, arena.halfSize, spawner.getGroups(), false)
+          weapon.update(dt)
+          shotCd -= dt
+          if (target && bestD < 45 && shotCd <= 0) {
+            weapon.fire()
+            shotCd = 0.15
+          }
+          spawner.update(dt, player.pos, arena.halfSize - 0.5)
+          levelup.update(dt, player.pos)
+          levelup.updateHeals(dt, player.pos, () => {})
+          floats.update(dt)
+          t += dt
+        }
+        if (player.hp <= 0) reason = 'death'
+        results.push(reason === 'death' ? t : null)
+        report(`RUN${run + 1} reason=${reason} wave=${spawner.waveNumber} kills=${kills} level=${levelup.level} hp=${Math.round(player.hp)}/${player.maxHp} time=${t.toFixed(0)}s`)
+      }
+      const surv = results.filter((x) => x !== null)
+      const avg = surv.length ? (surv.reduce((a, b) => a + b, 0) / surv.length).toFixed(0) : 0
+      report(`SUMMARY survived=${surv.length}/10 avgSurvival=${avg}s best=${surv.length ? Math.max(...surv).toFixed(0) : 0}s`)
+    } catch (err) {
+      report(`ERROR ${err.message} @ ${(err.stack || '').split('\n')[1]}`)
+    }
+  }, 2000)
+}
+
 if (location.search.includes('selftest')) {
   setTimeout(async () => {
     const report = (line) => {

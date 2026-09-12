@@ -6,7 +6,7 @@
 技术栈：Vite + Three.js（纯 JS，不用 TypeScript），单页应用，无需构建产物即可 `npm run dev` 游玩。
 
 ## 玩法规格（MVP 范围，按此开发，不要超纲）
-- 玩家：WASD 移动，鼠标瞄准（PointerLockControls），左键射击，R 换弹
+- 玩家：WASD 移动，Shift 冲刺（×1.6），鼠标瞄准（PointerLockControls），左键射击（±3° 辅助瞄准），R 换弹
 - 武器（MVP 只有一把）：手枪，5 发弹匣，伤害 10，射速 1 发/秒，换弹 1.2s
 - 敌人（全部几何体 + 材质色区分，不用模型资产）：
   - 快怪：红色小方块，速度快、血量 20、直冲玩家

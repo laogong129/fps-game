@@ -17,6 +17,10 @@ export class Spawner {
     return this.enemies.map((e) => e.group)
   }
 
+  getMeshes() {
+    return this.enemies.map((e) => e.body)
+  }
+
   startWave() {
     this.wave++
     this.toSpawn = waveSpawnCount(this.wave)
@@ -60,14 +64,16 @@ export class Spawner {
     this.enemies.push(e)
   }
 
-  onShotHit(group, damage) {
-    if (!group) return
-    const i = this.enemies.findIndex((e) => e.group === group)
+  onShotHit(obj, damage) {
+    if (!obj) return
+    let i = this.enemies.findIndex((e) => e.body === obj)
+    if (i < 0) i = this.enemies.findIndex((e) => e.group === obj)
     if (i < 0) return
-    const pos = group.position.clone()
-    if (damageEnemy(this.enemies[i], damage, this.scene)) {
-      const dead = this.enemies.splice(i, 1)[0]
-      this.events.onEnemyKilled(dead, dead.type)
+    const e = this.enemies[i]
+    const pos = e.group.position.clone()
+    if (damageEnemy(e, damage, this.scene)) {
+      this.enemies.splice(i, 1)
+      this.events.onEnemyKilled(e, e.type)
     }
     if (this.events.onDamage) this.events.onDamage(damage, pos)
   }

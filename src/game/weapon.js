@@ -14,7 +14,12 @@ export class Weapon {
     this.reloading = false
     this.reloadTimer = 0
     this.fireTimer = 0
+    this.kick = 0
     this.tracer = null
+
+    this.flash = new THREE.PointLight(0xffcc66, 0, 6)
+    this.flash.position.set(0, 0, -0.4)
+    this.player.gunGroup.add(this.flash)
 
     window.addEventListener('mousedown', (e) => {
       if (e.button === 0 && this.player.controls?.isLocked) this.fire()
@@ -31,6 +36,8 @@ export class Weapon {
     }
     this.ammo--
     this.fireTimer = this.fireInterval
+    this.kick = 1
+    this.flash.intensity = 3
     const from = this.player.gunGroup.getWorldPosition(new THREE.Vector3())
     const dir = this.player.camera.getWorldDirection(new THREE.Vector3())
     const ray = new THREE.Raycaster(from, dir, 0, 200)
@@ -72,9 +79,10 @@ export class Weapon {
     let best = null
     let bestAngle = maxAngle
     for (const t of targets) {
-      if (!t.userData.enemyGroup) continue
-      const c = t.position.clone()
-      c.y += t.userData.centerHeight || 0.5
+      const root = this.findEnemyRoot(t)
+      if (!root) continue
+      const c = root.position.clone()
+      c.y += root.userData.centerHeight || 0.5
       const to = c.sub(from)
       const d = to.length()
       if (d > CONFIG.weapon.assistRange || d < 0.5) continue
@@ -96,11 +104,20 @@ export class Weapon {
 
   update(dt) {
     if (this.fireTimer > 0) this.fireTimer -= dt
+    if (this.kick > 0) {
+      this.kick = Math.max(0, this.kick - dt / 0.08)
+      this.player.gunGroup.position.z = -0.5 + this.kick * 0.12
+    } else {
+      this.player.gunGroup.position.z = -0.5
+    }
+    this.flash.intensity = Math.max(0, this.flash.intensity - dt * 40)
     if (this.reloading) {
       this.reloadTimer -= dt
+      this.player.gunGroup.rotation.x = -0.6 * Math.sin(Math.min(1, 1 - this.reloadTimer / this.reloadTime) * Math.PI)
       if (this.reloadTimer <= 0) {
         this.ammo = this.magSize
         this.reloading = false
+        this.player.gunGroup.rotation.x = 0
       }
     }
     if (this.tracer) {

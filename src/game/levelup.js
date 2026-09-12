@@ -34,10 +34,13 @@ export class LevelUp {
   }
 
   update(dt, playerPos) {
+    const pp = playerPos.clone()
+    pp.y = 0
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const p = this.pickups[i]
-      const toPlayer = playerPos.clone().sub(p.position)
-      toPlayer.y = 0
+      const pc = p.position.clone()
+      pc.y = 0
+      const toPlayer = pp.sub(pc)
       const dist = toPlayer.length()
       const { magnetRange, collectRange } = CONFIG.pickup
       if (dist < collectRange) {
@@ -47,6 +50,7 @@ export class LevelUp {
         if (this.xp >= this.xpNext) this.levelUp()
       } else if (dist < magnetRange) {
         p.position.add(toPlayer.normalize().multiplyScalar(8 * dt))
+        p.position.y += (0.5 - p.position.y) * 0.1
       }
     }
   }

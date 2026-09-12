@@ -45,7 +45,7 @@ function buildWorld() {
   })
   levelup = new LevelUp(scene, player, weapon, () => {}, () => {})
   weapon = new Weapon(scene, player, {
-    getEnemies: () => spawner.getGroups(),
+    getEnemies: () => spawner.getMeshes(),
     onHit: (mesh, dmg) => spawner.onShotHit(mesh, dmg),
     onShot: () => {},
   })
@@ -109,6 +109,53 @@ document.getElementById('restart-btn').addEventListener('click', startGame)
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter' && state === 'dead') startGame()
 })
+
+if (location.search.includes('selftest')) {
+  setTimeout(async () => {
+    const report = (line) => {
+      console.log(`SELFTEST:${line}`)
+      document.title = `SELFTEST:${line}`
+      const d = document.createElement('div')
+      d.style.cssText = 'position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.9);color:#fff;font:40px monospace'
+      d.textContent = line
+      document.body.appendChild(d)
+    }
+    try {
+      await startGame()
+      player.controls = { isLocked: true, lock() {}, unlock() {} }
+      spawner.waveTimer = 0
+      spawner.toSpawn = 0
+      spawner.startWave()
+      spawner.spawnOne()
+      spawner.spawnOne()
+      weapon.fireInterval = 0.05
+      CONFIG.pickup.magnetRange = 60
+      let t = 0
+      while (t < 60 && kills < 10) {
+        spawner.update(1 / 60, player.pos, arena.halfSize - 0.5)
+        const tgt = spawner.enemies[0]
+        if (tgt) {
+          const c = tgt.group.position.clone()
+          c.y += tgt.group.userData.centerHeight
+          camera.lookAt(c)
+        }
+        weapon.update(1 / 60)
+        levelup.update(1 / 60, player.pos)
+        weapon.fire()
+        t += 1 / 60
+      }
+      const ok = kills >= 8 && levelup.xp + levelup.level > 1
+      const pp = player.pos.clone(); pp.y = 0
+      const near = levelup.pickups.map((p) => {
+        const d = p.position.clone(); d.y = 0
+        return +pp.distanceTo(d).toFixed(1)
+      }).sort((a, b) => a - b)
+      report(`${ok ? 'PASS' : 'FAIL'} kills=${kills} level=${levelup.level} xp=${levelup.xp}/${levelup.xpNext} pickups=${levelup.pickups.length} nearest=[${near.slice(0, 3)}]`)
+    } catch (err) {
+      report(`ERROR ${err.message} @ ${(err.stack || '').split('\n')[1]}`)
+    }
+  }, 1500)
+}
 
 let lastTime = performance.now()
 function loop() {

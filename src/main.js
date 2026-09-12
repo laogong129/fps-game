@@ -9,6 +9,7 @@ import { LevelUp } from './game/levelup.js'
 import { Hud } from './game/hud.js'
 import { FloatingText } from './game/text.js'
 import { playShot, playHit, playReload, playLevelUp } from './game/sound.js'
+import { applyAnimeStyle } from './game/style.js'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
@@ -25,8 +26,9 @@ window.addEventListener('resize', () => {
 })
 
 const arena = createArena(scene, null)
-new GLTFLoader().load('/assets/city.glb', (gltf) => {
+new GLTFLoader().load('/assets/temple.glb', (gltf) => {
   gltf.scene.traverse((o) => { if (o.isMesh) o.castShadow = true })
+  applyAnimeStyle(gltf.scene)
   scene.add(gltf.scene)
 })
 const hud = new Hud()
@@ -76,7 +78,7 @@ function buildWorld() {
   weapon = new WeaponSystem(scene, player, {
     getEnemies: () => spawner.getMeshes(),
     onHit: (mesh, dmg) => {
-      spawner.onShotHit(mesh, dmg)
+      spawner.onShotHit(mesh, Math.round(dmg * (player.dmgMult || 1)))
       playHit()
     },
     onShot: () => playShot(weapon.active),
@@ -113,6 +115,13 @@ function resetStats() {
   player.pos.set(0, CONFIG.player.height, 0)
   player.yVel = 0
   player.jumpQueued = false
+  player.ghost = false
+  document.getElementById('dbg-ghost').textContent = '穿墙'
+  player.invuln = false
+  player.dmgMult = 1
+  document.getElementById('dbg-invuln').textContent = '无敌'
+  document.getElementById('dbg-dmg').value = 1
+  document.getElementById('dbg-dmg-val').textContent = '×1'
   weapon.resetUpgrades()
   camera.position.set(0, CONFIG.player.height, 0)
   camera.quaternion.identity()
@@ -155,6 +164,10 @@ document.getElementById('relock-btn').addEventListener('click', () => {
   if (state === 'playing' || state === 'won') player.safeLock()
 })
 window.addEventListener('keydown', (e) => {
+  if (e.code === 'F3') {
+    e.preventDefault()
+    toggleDebug()
+  }
   if (e.code === 'Enter' && state === 'dead') startGame()
 })
 
@@ -306,6 +319,102 @@ if (location.search.includes('selftest')) {
 }
 
 let lastTime = performance.now()
+let debugOn = false
+let fpsAcc = 0
+let fpsCount = 0
+let fpsShown = 0
+
+function toggleDebug() {
+  debugOn = !debugOn
+  document.getElementById('debug-panel').classList.toggle('hide', !debugOn)
+}
+
+function jumpToLevel() {
+  if (!levelup) return
+  levelup.xp = 0
+  let guard = 0
+  while (levelup.level < 3 && guard++ < 20) {
+    levelup.xp = levelup.xpNext
+    levelup.levelUp()
+  }
+}
+
+let collWire = null
+function buildCollisionWires() {
+  collWire = new THREE.Group()
+  for (const o of arena.obstacles) {
+    const w = new THREE.Mesh(
+      new THREE.CylinderGeometry(o.r, o.r, 0.08, 24, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xff4444, wireframe: true, transparent: true, opacity: 0.8, depthWrite: false })
+    )
+    w.position.set(o.x, 0.05, o.z)
+    collWire.add(w)
+  }
+  const ring = new THREE.Mesh(
+    new THREE.CylinderGeometry(CONFIG.player.radius, CONFIG.player.radius, 0.06, 16, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x00ff88, wireframe: true, transparent: true, opacity: 0.9, depthWrite: false })
+  )
+  ring.name = 'playerRing'
+  collWire.add(ring)
+  collWire.visible = false
+  scene.add(collWire)
+}
+
+function updateDebugPanel(dt) {
+  if (!debugOn) return
+  fpsAcc += dt
+  fpsCount++
+  if (fpsAcc >= 0.5) {
+    fpsShown = Math.round(fpsCount / fpsAcc)
+    fpsAcc = 0
+    fpsCount = 0
+  }
+  document.getElementById('dbg-fps').textContent =
+    `FPS ${fpsShown} ｜ 帧 ${(dt * 1000).toFixed(1)}ms\n` +
+    `敌人 ${spawner.enemies.length} ｜ 飞弹 ${spawner.projectiles.length} ｜ 经验球 ${levelup.pickups.length}\n` +
+    `坐标 ${player.pos.x.toFixed(1)}, ${player.pos.z.toFixed(1)} ｜ Lv${levelup.level} 波${spawner.waveNumber} 击杀${kills}`
+  if (collWire) {
+    const pr = collWire.getObjectByName('playerRing')
+    if (pr) pr.position.set(player.pos.x, 0.05, player.pos.z)
+    for (const e of spawner.enemies) {
+      let ring = e.group.userData.dbgRing
+      if (!ring) {
+        ring = new THREE.Mesh(
+          new THREE.CylinderGeometry(e.def.size / 2 + CONFIG.player.contactRadius, e.def.size / 2 + CONFIG.player.contactRadius, 0.06, 16, 1, true),
+          new THREE.MeshBasicMaterial({ color: 0xffaa00, wireframe: true, transparent: true, opacity: 0.7, depthWrite: false })
+        )
+        ring.name = 'enemyRing'
+        scene.add(ring)
+        e.group.userData.dbgRing = ring
+      }
+      ring.visible = collWire.visible
+      ring.position.set(e.group.position.x, 0.04, e.group.position.z)
+    }
+  }
+}
+
+document.getElementById('dbg-level').addEventListener('click', jumpToLevel)
+document.getElementById('dbg-collision').addEventListener('click', () => {
+  if (!collWire) buildCollisionWires()
+  collWire.visible = !collWire.visible
+  for (const e of spawner.enemies) {
+    const r = e.group.userData.dbgRing
+    if (r) r.visible = collWire.visible
+  }
+})
+document.getElementById('dbg-ghost').addEventListener('click', () => {
+  player.ghost = !player.ghost
+  document.getElementById('dbg-ghost').textContent = player.ghost ? '穿墙中' : '穿墙'
+})
+document.getElementById('dbg-invuln').addEventListener('click', () => {
+  player.invuln = !player.invuln
+  document.getElementById('dbg-invuln').textContent = player.invuln ? '无敌中' : '无敌'
+})
+document.getElementById('dbg-dmg').addEventListener('input', (e) => {
+  player.dmgMult = parseFloat(e.target.value)
+  document.getElementById('dbg-dmg-val').textContent = `×${player.dmgMult}`
+})
+
 function loop() {
   requestAnimationFrame(loop)
   const now = performance.now()
@@ -348,6 +457,7 @@ function loop() {
         '画面未锁定：点击"重新锁定鼠标"按钮继续（Esc 退出）'
     }
   }
+  updateDebugPanel(dt)
   renderer.render(scene, camera)
 }
 

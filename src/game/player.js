@@ -100,6 +100,7 @@ export class Player {
       this.pos.add(move)
     }
     for (const g of enemyGroups) {
+      if (this.ghost) break
       const r = g.userData.centerHeight + 0.3
       const dx = this.pos.x - g.position.x
       const dz = this.pos.z - g.position.z
@@ -110,7 +111,7 @@ export class Player {
         this.pos.z += (dz / d) * (min - d)
       }
     }
-    if (obstacles) resolveObstacles(this.pos, p.radius, obstacles)
+    if (obstacles && !this.ghost) resolveObstacles(this.pos, p.radius, obstacles)
     const grounded = this.pos.y <= p.height
     if (this.jumpQueued && grounded) this.yVel = p.jump.velocity
     this.jumpQueued = false
@@ -122,13 +123,16 @@ export class Player {
         this.yVel = 0
       }
     }
-    this.pos.x = THREE.MathUtils.clamp(this.pos.x, -inner + p.radius, inner - p.radius)
-    this.pos.z = THREE.MathUtils.clamp(this.pos.z, -inner + p.radius, inner - p.radius)
+    if (!this.ghost) {
+      this.pos.x = THREE.MathUtils.clamp(this.pos.x, -inner + p.radius, inner - p.radius)
+      this.pos.z = THREE.MathUtils.clamp(this.pos.z, -inner + p.radius, inner - p.radius)
+    }
     this.camera.position.copy(this.pos)
     if (this.cameraRecoilY) this.camera.position.y += this.cameraRecoilY
   }
 
   takeDamage(amount) {
+    if (this.invuln) return false
     if (this.invulnTimer > 0) return false
     this.hp -= amount
     this.invulnTimer = CONFIG.player.invulnAfterHit

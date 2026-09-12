@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config.js'
+import { makeToon } from './style.js'
 
 export class WeaponSystem {
   constructor(scene, player, callbacks) {
@@ -110,7 +111,7 @@ export class WeaponSystem {
     for (const part of CONFIG.gunShape[this.active]) {
       const m = new THREE.Mesh(
         new THREE.BoxGeometry(...part.size),
-        new THREE.MeshStandardMaterial({ color: part.color })
+        makeToon(part.color)
       )
       m.position.set(...part.pos)
       group.add(m)

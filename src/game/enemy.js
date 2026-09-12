@@ -2,16 +2,18 @@ import * as THREE from 'three'
 import { CONFIG } from '../config.js'
 import { makeTextSprite, updateSpriteText } from './text.js'
 import { resolveObstacles } from './arena.js'
+import { makeToon, addOutline } from './style.js'
 
 export function createEnemy(type, hpMultiplier, scene) {
   const def = CONFIG.enemy[type]
   const group = new THREE.Group()
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(def.size, def.size, def.size),
-    new THREE.MeshStandardMaterial({ color: def.color })
+    makeToon(def.color)
   )
   body.position.y = def.size / 2
   body.castShadow = true
+  addOutline(body, 1.03)
   group.add(body)
   addEyes(group, def)
 
@@ -51,11 +53,7 @@ export function createEnemy(type, hpMultiplier, scene) {
 
 function addEyes(group, def) {
   const eyeGeo = new THREE.SphereGeometry(def.size * 0.09, 8, 8)
-  const eyeMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    emissive: def.behavior === 'boss' ? 0xff2200 : 0xffcc00,
-    emissiveIntensity: 2,
-  })
+  const eyeMat = makeToon(0xffffff, def.behavior === 'boss' ? 0xff2200 : 0xffcc00, 2)
   const ex = def.size * 0.28
   const ez = def.size * 0.5
   const ey = def.size * 0.62

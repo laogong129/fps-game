@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config.js'
-import cityData from '../../assets/city_obstacles.json'
+import jpData from '../../assets/jp_obstacles.json'
+import { applyToon, addOutline } from './style.js'
 
 export function createArena(scene, model) {
   const { size, wallHeight, wallColor, fogColor } = CONFIG.arena
@@ -30,31 +31,33 @@ export function createArena(scene, model) {
     scene.add(wall)
   }
 
-  const ambient = new THREE.AmbientLight(0x2a3550, 0.9)
+  const ambient = new THREE.AmbientLight(0x8a7a9a, 1.1)
   scene.add(ambient)
-  const dir = new THREE.DirectionalLight(0x8899cc, 0.5)
-  dir.position.set(10, 20, 10)
-  dir.castShadow = true
-  dir.shadow.camera.left = -size / 2
-  dir.shadow.camera.right = size / 2
-  dir.shadow.camera.top = -size / 2
-  dir.shadow.camera.bottom = size / 2
-  dir.shadow.mapSize.set(1024, 1024)
-  scene.add(dir)
+  const sun = new THREE.DirectionalLight(0xffd9b0, 1.6)
+  sun.position.set(-20, 30, -25)
+  sun.castShadow = true
+  sun.shadow.camera.left = -size / 2
+  sun.shadow.camera.right = size / 2
+  sun.shadow.camera.top = -size / 2
+  sun.shadow.camera.bottom = size / 2
+  sun.shadow.mapSize.set(1024, 1024)
+  scene.add(sun)
+  const sky = new THREE.HemisphereLight(0xb489c8, 0x4a3a2a, 0.7)
+  scene.add(sky)
 
-  for (const [x, z, y] of cityData.lights) {
-    const l = new THREE.PointLight(0x99bbff, 26, 24, 2)
+  for (const [x, z, y] of jpData.lights) {
+    const l = new THREE.PointLight(0xffc26e, 22, 20, 2)
     l.position.set(x, y, z)
     scene.add(l)
   }
 
-  const updateRain = addRain(scene)
+  const updatePetals = addPetals(scene)
 
   return {
     halfSize: size / 2,
     wallHeight,
-    updatePetals: (dt) => updateRain(dt, size),
-    obstacles: cityData.obstacles,
+    updatePetals,
+    obstacles: jpData.obstacles,
   }
 }
 
@@ -72,27 +75,28 @@ export function resolveObstacles(pos, radius, obstacles) {
   }
 }
 
-function addRain(scene) {
-  const count = 300
+function addPetals(scene) {
+  const count = 260
   const geo = new THREE.BufferGeometry()
   const pos = new Float32Array(count * 3)
-  const vel = []
+  const drift = []
   for (let i = 0; i < count; i++) {
     pos[i * 3] = (Math.random() - 0.5) * 56
     pos[i * 3 + 1] = Math.random() * 12
     pos[i * 3 + 2] = (Math.random() - 0.5) * 56
-    vel.push(11 + Math.random() * 6)
+    drift.push((Math.random() - 0.5) * 1.5)
   }
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
   const mat = new THREE.PointsMaterial({
-    color: 0x88aadd, size: 0.08, transparent: true, opacity: 0.5, depthWrite: false,
+    color: 0xf5b8c8, size: 0.16, transparent: true, opacity: 0.85, depthWrite: false,
   })
   const points = new THREE.Points(geo, mat)
   scene.add(points)
   return (dt, size) => {
     const arr = geo.attributes.position.array
     for (let i = 0; i < count; i++) {
-      arr[i * 3 + 1] -= vel[i] * dt
+      arr[i * 3 + 1] -= (1.2 + (i % 5) * 0.3) * dt
+      arr[i * 3] += Math.sin(arr[i * 3 + 1] * 0.8 + i) * drift[i] * dt
       if (arr[i * 3 + 1] < 0) {
         arr[i * 3 + 1] = 11 + Math.random() * 2
         arr[i * 3] = (Math.random() - 0.5) * size

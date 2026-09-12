@@ -56,6 +56,11 @@ export class Weapon {
         endPoint = from.clone().add(dir.clone().multiplyScalar(100))
       }
     }
+    if (this.tracer) {
+      this.scene.remove(this.tracer)
+      this.tracer.geometry.dispose()
+      this.tracer.material.dispose()
+    }
     this.tracer = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([from, endPoint]),
       new THREE.LineBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9 })

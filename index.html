@@ -30,6 +30,12 @@
         background: radial-gradient(ellipse at center, transparent 55%, rgba(200,0,0,0.55) 100%);
         opacity: 0; transition: opacity 0.25s;
       }
+      #lock-hint {
+        position: fixed; left: 50%; top: 20%; transform: translateX(-50%);
+        z-index: 7; pointer-events: none; display: none;
+        background: rgba(0,0,0,0.6); color: #f1c40f; font-size: 16px;
+        padding: 10px 22px; border-radius: 8px; border: 1px solid rgba(241,196,15,0.4);
+      }
       #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; color: #fff; }
       .hud-panel {
         position: absolute; background: rgba(0,0,0,0.4);
@@ -95,6 +101,10 @@
       <div id="crosshair">+</div>
     </div>
     <div id="dmg-flash"></div>
+    <div id="lock-hint">
+      <div id="lock-hint-text">画面未锁定：点击按钮重新操控（Esc 退出）</div>
+      <button class="btn" id="relock-btn" style="margin-top:10px;padding:8px 30px">重新锁定鼠标</button>
+    </div>
 
     <div id="levelup">
       <div id="levelup-inner">

@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config.js'
+import { resolveObstacles } from './arena.js'
 
 export class Player {
   constructor(camera, domElement, scene) {
@@ -35,7 +36,33 @@ export class Player {
       if (e.code === 'Space') this.jumpQueued = true
     })
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false })
-    domElement.addEventListener('click', () => this.controls?.lock())
+    domElement.addEventListener('click', () => this.safeLock())
+  }
+
+  safeLock() {
+    if (!this.controls || this.controls.isLocked) return
+    this.lockPending = true
+    const attempt = (n) => {
+      if (!this.controls || this.controls.isLocked) {
+        this.lockPending = false
+        return
+      }
+      if (n >= 4) {
+        this.lockPending = false
+        this.lockFailed = true
+        return
+      }
+      try { this.controls.lock() } catch { this.lockFailed = true }
+      setTimeout(() => {
+        if (!this.controls || this.controls.isLocked) {
+          this.lockPending = false
+          return
+        }
+        attempt(n + 1)
+      }, 1400)
+    }
+    this.lockFailed = false
+    attempt(0)
   }
 
   async initControls() {

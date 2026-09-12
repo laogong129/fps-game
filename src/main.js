@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { CONFIG } from './config.js'
 import { createArena } from './game/arena.js'
 import { Player } from './game/player.js'
@@ -23,7 +24,11 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight)
 })
 
-const arena = createArena(scene)
+const arena = createArena(scene, null)
+new GLTFLoader().load('/assets/city.glb', (gltf) => {
+  gltf.scene.traverse((o) => { if (o.isMesh) o.castShadow = true })
+  scene.add(gltf.scene)
+})
 const hud = new Hud()
 const floats = new FloatingText(scene)
 
@@ -85,7 +90,7 @@ function buildWorld() {
     hud.showLevelUp(levelup.rollChoices(3), (key) => {
       levelup.applyChoice(key)
       state = 'playing'
-      player.controls.lock()
+      player.safeLock()
     })
   }
 }
@@ -123,7 +128,7 @@ async function startGame() {
   state = 'playing'
   document.getElementById('start-screen').classList.remove('show')
   hud.hideGameOver()
-  player.controls.lock()
+  player.safeLock()
 }
 
 function onGameOver() {
@@ -141,11 +146,14 @@ function onWin() {
 document.getElementById('continue-btn').addEventListener('click', () => {
   document.getElementById('gameover-screen').classList.remove('show')
   state = 'playing'
-  player.controls.lock()
+  player.safeLock()
 })
 
 document.getElementById('start-btn').addEventListener('click', startGame)
 document.getElementById('restart-btn').addEventListener('click', startGame)
+document.getElementById('relock-btn').addEventListener('click', () => {
+  if (state === 'playing' || state === 'won') player.safeLock()
+})
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter' && state === 'dead') startGame()
 })
@@ -328,6 +336,18 @@ function loop() {
     ammoHint: weapon ? weapon.getReloadHint() : 'R 换弹',
     weaponName: weapon ? weapon.getGunDisplay() : '手枪（1）',
   }, dt)
+  if (state === 'playing' || state === 'won') {
+    const unlocked = player.controls && !player.controls.isLocked
+    const hint = document.getElementById('lock-hint')
+    hint.style.display = unlocked ? 'block' : 'none'
+    if (unlocked && player.lockFailed) {
+      document.getElementById('lock-hint-text').textContent =
+        '锁定失败（浏览器冷却期）：已自动重试，稍等 1 秒再点"重新锁定鼠标"'
+    } else {
+      document.getElementById('lock-hint-text').textContent =
+        '画面未锁定：点击"重新锁定鼠标"按钮继续（Esc 退出）'
+    }
+  }
   renderer.render(scene, camera)
 }
 

@@ -50,6 +50,18 @@ function buildWorld() {
       floats.spawn(`-${pr.damage}`, pr.mesh.position, '#ff4444')
       return true
     },
+    onCrateCollected: (pos) => {
+      const locked = weapon.keys.filter((k) => !weapon.unlocked.has(k))
+      if (locked.length > 0) {
+        const pick = locked[Math.floor(Math.random() * locked.length)]
+        weapon.unlock(pick)
+        floats.spawn(`获得 ${weapon.guns[pick].label}！`, pos, '#27d8e8')
+      } else {
+        weapon.applyUpgrade('mag')
+        floats.spawn('弹匣扩充！', pos, '#27d8e8')
+      }
+    },
+    onWin: () => onWin(),
   })
   weapon = new WeaponSystem(scene, player, {
     getEnemies: () => spawner.getMeshes(),
@@ -109,6 +121,18 @@ function onGameOver() {
   player.controls.unlock()
   hud.showGameOver({ wave: spawner.wave, kills, time: elapsed })
 }
+
+function onWin() {
+  state = 'won'
+  player.controls.unlock()
+  hud.showWin({ wave: spawner.wave, kills, time: elapsed })
+}
+
+document.getElementById('continue-btn').addEventListener('click', () => {
+  document.getElementById('gameover-screen').classList.remove('show')
+  state = 'playing'
+  player.controls.lock()
+})
 
 document.getElementById('start-btn').addEventListener('click', startGame)
 document.getElementById('restart-btn').addEventListener('click', startGame)
@@ -270,7 +294,7 @@ function loop() {
   const dt = Math.min(0.05, (now - lastTime) / 1000)
   lastTime = now
 
-  if (state === 'playing') {
+  if (state === 'playing' || state === 'won') {
     elapsed += dt
     player.update(dt, arena.halfSize, spawner.getGroups(), false)
     weapon.update(dt)

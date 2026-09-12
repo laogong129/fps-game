@@ -38,6 +38,8 @@ export function createEnemy(type, hpMultiplier, scene) {
     fireTimer: def.fireInterval ? Math.random() * def.fireInterval : 0,
     state: 'seek',
     stateTimer: 0,
+    ringTimer: def.behavior === 'boss' ? CONFIG.boss.ringEvery : 0,
+    summonTimer: def.behavior === 'boss' ? 5 : 0,
     chargeDir: new THREE.Vector3(),
   }
   return e
@@ -129,6 +131,20 @@ export function updateCharger(e, playerPos, dt, inner, others, api) {
   } else if (e.state === 'recover') {
     e.stateTimer -= dt
     if (e.stateTimer <= 0) e.state = 'seek'
+  }
+}
+
+export function updateBoss(e, playerPos, dt, inner, others, api) {
+  moveToward(e, playerPos, dt, inner, others)
+  e.ringTimer -= dt
+  e.summonTimer -= dt
+  if (e.ringTimer <= 0) {
+    e.ringTimer = CONFIG.boss.ringEvery
+    api.bossRing(e.group.position.clone().add(new THREE.Vector3(0, e.def.size / 2, 0)))
+  }
+  if (e.summonTimer <= 0) {
+    e.summonTimer = CONFIG.boss.summonEvery
+    api.bossSummon(e.group.position)
   }
 }
 

@@ -46,8 +46,18 @@ export class Hud {
   }
 
   showGameOver(stats) {
+    document.getElementById('gameover-title').textContent = '阵亡'
     const el = document.getElementById('gameover-stats')
     el.innerHTML = `到达波次 <b>${stats.wave}</b> ｜ 总击杀 <b>${stats.kills}</b> ｜ 存活 <b>${(stats.time / 60).toFixed(1)}</b> 分钟`
+    document.getElementById('continue-btn').classList.add('hide')
+    document.getElementById('gameover-screen').classList.add('show')
+  }
+
+  showWin(stats) {
+    document.getElementById('gameover-title').textContent = '围城突破！'
+    const el = document.getElementById('gameover-stats')
+    el.innerHTML = `达成第 <b>${stats.wave}</b> 波目标<br>总击杀 <b>${stats.kills}</b> ｜ 用时 <b>${(stats.time / 60).toFixed(1)}</b> 分钟`
+    document.getElementById('continue-btn').classList.remove('hide')
     document.getElementById('gameover-screen').classList.add('show')
   }
 

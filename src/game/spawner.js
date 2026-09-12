@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { CONFIG, waveSpawnCount, waveHpMultiplier } from '../config.js'
 import {
-  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateEnemyBars, enemyCenter, damageEnemy,
+  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy,
 } from './enemy.js'
 
 export class Spawner {
@@ -17,6 +17,7 @@ export class Spawner {
     this.toSpawn = 0
     this.spawnTimer = 0
     this.spawnInterval = 1.2
+    this.crateWave = 0
   }
 
   getGroups() {
@@ -29,9 +30,93 @@ export class Spawner {
 
   startWave() {
     this.wave++
-    this.toSpawn = waveSpawnCount(this.wave)
     this.spawnTimer = 0
     this.waveTimer = CONFIG.wave.baseInterval
+    if (this.wave === CONFIG.boss.wave) {
+      this.toSpawn = 0
+      this.spawnBoss()
+      return
+    }
+    if (this.wave === CONFIG.goal.winWave) {
+      this.toSpawn = 0
+      if (this.events.onWin) this.events.onWin()
+      return
+    }
+    this.toSpawn = waveSpawnCount(this.wave)
+    this.crateWave++
+    if (CONFIG.crate.fromWave && this.wave >= CONFIG.crate.fromWave && this.crateWave % CONFIG.crate.everyWaves === 0) {
+      this.spawnCrate(new THREE.Vector3(0, 0, 0))
+    }
+  }
+
+  spawnBoss() {
+    const e = createEnemy('boss', 1, this.scene)
+    e.group.position.set(0, 0, -20)
+    this.enemies.push(e)
+  }
+
+  spawnCrate(pos) {
+    if (this.crate) return
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 1.2, 1.2),
+      new THREE.MeshStandardMaterial({ color: CONFIG.crate.color, emissive: 0x0b4a52 })
+    )
+    m.position.copy(pos)
+    m.position.y = 0.8
+    this.scene.add(m)
+    this.crate = { mesh: m, spin: 0 }
+  }
+
+  updateCrate(dt, playerPos) {
+    if (!this.crate) return
+    const c = this.crate
+    c.spin += dt
+    c.mesh.rotation.y += dt * 1.5
+    c.mesh.position.y = 0.8 + Math.sin(c.spin * 2) * 0.15
+    const d = c.mesh.position.clone().setY(0).distanceTo(playerPos.clone().setY(0))
+    if (d < CONFIG.crate.collectRange) {
+      this.events.onCrateCollected(c.mesh.position.clone())
+      this.removeCrate()
+    }
+  }
+
+  removeCrate() {
+    if (!this.crate) return
+    this.scene.remove(this.crate.mesh)
+    this.crate.mesh.geometry.dispose()
+    this.crate = null
+  }
+
+  bossRing(origin) {
+    const ring = CONFIG.boss
+    for (let i = 0; i < ring.ringCount; i++) {
+      const a = (i / ring.ringCount) * Math.PI * 2
+      const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a))
+      const pr = this.createProjectile(origin, origin.clone().add(dir.clone().multiplyScalar(15)), 10)
+      pr.vel.y = 2
+      this.projectiles.push(pr)
+    }
+  }
+
+  bossSummon(pos) {
+    this.spawnMinibugs(pos)
+    this.spawnMinibugs(pos)
+  }
+
+  createProjectile(from, to, damage) {
+    const T = THREE.MathUtils.clamp(from.clone().setY(0).distanceTo(to.clone().setY(0)) / CONFIG.projectile.speed, 0.5, 2)
+    const vel = to.clone().sub(from).divideScalar(T)
+    vel.y += 0.5 * CONFIG.projectile.gravity * T
+    const mesh = new THREE.Mesh(this.projGeo, this.projMat)
+    mesh.position.copy(from)
+    this.scene.add(mesh)
+    return { mesh, vel, life: CONFIG.projectile.ttl, damage }
+  }
+
+  fireProjectile(e, playerPos) {
+    const from = enemyCenter(e)
+    const pr = this.createProjectile(from, playerPos, e.def.projDamage)
+    this.projectiles.push(pr)
   }
 
   pickType() {
@@ -88,12 +173,18 @@ export class Spawner {
         this.spawnOne()
       }
     }
+    this.updateCrate(dt, playerPos)
     const p = CONFIG.player
-    const api = { fireProjectile: (e) => this.fireProjectile(e, playerPos) }
+    const api = {
+      fireProjectile: (e) => this.fireProjectile(e, playerPos),
+      bossRing: (o) => this.bossRing(o),
+      bossSummon: (pos) => this.bossSummon(pos),
+    }
     for (const e of this.enemies) {
       const b = e.def.behavior
       if (b === 'spitter') updateSpitter(e, playerPos, dt, inner, this.enemies, api)
       else if (b === 'charger') updateCharger(e, playerPos, dt, inner, this.enemies, api)
+      else if (b === 'boss') updateBoss(e, playerPos, dt, inner, this.enemies, api)
       else chaseEnemy(e, playerPos, dt, inner, this.enemies)
       updateEnemyBars(e, this.events.camera)
       const c = enemyCenter(e)
@@ -149,6 +240,7 @@ export class Spawner {
     for (const pr of this.projectiles) this.scene.remove(pr.mesh)
     this.enemies.length = 0
     this.projectiles.length = 0
+    this.removeCrate()
   }
 
   get waveNumber() {

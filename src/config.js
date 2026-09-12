@@ -119,6 +119,15 @@ export const CONFIG = {
       chargeCd: 3.5,
       standRange: 8,
     },
+    boss: {
+      label: '围城之王',
+      size: 3.0,
+      color: 0x1abc9c,
+      speed: 1.5,
+      hp: 800,
+      xp: 50,
+      behavior: 'boss',
+    },
     maxAlive: 40,
     spawnDistance: [24, 28],
     separation: 0.9,
@@ -154,8 +163,26 @@ export const CONFIG = {
 
   pickup: {
     radius: 0.35,
-    magnetRange: 3.0,
+    magnetRange: 5.0,
     collectRange: 1.0,
+  },
+
+  crate: {
+    fromWave: 3,
+    everyWaves: 3,
+    collectRange: 1.8,
+    color: 0x27d8e8,
+  },
+
+  boss: {
+    wave: 8,
+    ringEvery: 2.5,
+    ringCount: 8,
+    summonEvery: 10,
+  },
+
+  goal: {
+    winWave: 10,
   },
 
   heal: {

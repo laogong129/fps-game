@@ -18,6 +18,12 @@ export class Player {
     this.yVel = 0
     this.jumpQueued = false
 
+    // 后坐力/震感附加状态
+    this.cameraRecoilY = 0
+    this.cameraRotationX = 0
+    this.cameraYaw = 0
+    this.screenShake = 0
+
     this.gunGroup = new THREE.Group()
     this.gunGroup.position.set(0.25, -0.4, -0.5)
     this.camera.add(this.gunGroup)
@@ -129,6 +135,12 @@ export class Player {
     }
     this.camera.position.copy(this.pos)
     if (this.cameraRecoilY) this.camera.position.y += this.cameraRecoilY
+    // 屏幕震感：在相机位置加随机偏移（模拟打击感）
+    if (this.screenShake > 0) {
+      const s = this.screenShake * 0.5
+      this.camera.position.x += (Math.random() - 0.5) * s
+      this.camera.position.z += (Math.random() - 0.5) * s
+    }
   }
 
   takeDamage(amount) {

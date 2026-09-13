@@ -15,6 +15,13 @@ export class WeaponSystem {
     this.mouseHeld = false
     this.adsHeld = false
 
+    // 后坐力状态
+    this.punch = 0
+    this.camTiltX = 0   // 相机上下旋转（后坐力上跳）
+    this.camYaw = 0     // 相机左右旋转
+    this.shake = 0      // 屏幕抖动强度
+    this.shakeDecay = 0
+
     this.flash = new THREE.PointLight(0xffcc66, 0, 6)
     this.flash.position.set(0, 0, -0.4)
     player.gunGroup.add(this.flash)
@@ -34,15 +41,11 @@ export class WeaponSystem {
       scene.add(m)
       this.sparks.push({ mesh: m, vel: new THREE.Vector3(), life: 0 })
     }
-    this.punch = 0
     this.updateModel()
 
     window.addEventListener('mousedown', (e) => {
       if (!this.player.controls?.isLocked) return
-      if (e.button === 0) {
-        this.mouseHeld = true
-        this.fire()
-      }
+      if (e.button === 0) { this.mouseHeld = true; this.fire() }
       if (e.button === 2) this.adsHeld = true
     })
     window.addEventListener('mouseup', (e) => {
@@ -57,33 +60,21 @@ export class WeaponSystem {
     })
   }
 
-  get keys() {
-    return ['pistol', 'shotgun', 'rifle']
-  }
+  get keys() { return ['pistol', 'shotgun', 'rifle'] }
 
   makeGun(key) {
     const d = CONFIG.weapon[key]
     return {
-      key,
-      label: d.label,
-      damage: d.damage,
-      fireInterval: d.fireInterval,
-      magSize: d.magSize,
-      reloadTime: d.reloadTime,
-      ammo: d.magSize,
-      pellets: d.pellets || 1,
-      spread: d.spread || 0,
-      auto: !!d.auto,
-      adsFov: d.adsFov || 0,
-      reloading: false,
-      reloadTimer: 0,
-      fireTimer: 0,
+      key, label: d.label, damage: d.damage, fireInterval: d.fireInterval,
+      magSize: d.magSize, reloadTime: d.reloadTime, ammo: d.magSize,
+      pellets: d.pellets || 1, spread: d.spread || 0,
+      auto: !!d.auto, adsFov: d.adsFov || 0,
+      reloading: false, reloadTimer: 0, fireTimer: 0,
+      recoil: d.recoil || { kick: 0.1, camY: 0.01, camYaw: 0.005, shakeAmp: 0.003, shakeFreq: 15 },
     }
   }
 
-  get gun() {
-    return this.guns[this.active]
-  }
+  get gun() { return this.guns[this.active] }
 
   switchTo(key) {
     if (!this.unlocked.has(key) || this.active === key) return
@@ -103,16 +94,10 @@ export class WeaponSystem {
 
   updateModel() {
     const old = this.player.gunModel
-    if (old) {
-      this.player.gunGroup.remove(old)
-      old.traverse((o) => o.isMesh && o.geometry.dispose())
-    }
+    if (old) { this.player.gunGroup.remove(old); old.traverse((o) => o.isMesh && o.geometry.dispose()) }
     const group = new THREE.Group()
     for (const part of CONFIG.gunShape[this.active]) {
-      const m = new THREE.Mesh(
-        new THREE.BoxGeometry(...part.size),
-        makeToon(part.color)
-      )
+      const m = new THREE.Mesh(new THREE.BoxGeometry(...part.size), makeToon(part.color))
       m.position.set(...part.pos)
       group.add(m)
     }
@@ -128,8 +113,20 @@ export class WeaponSystem {
     }
     g.ammo--
     g.fireTimer = g.fireInterval
+
+    // 枪身后坐：瞬间向后，缓速回弹
     this.kick = 1
-    this.punch = 0.02
+
+    // 相机后坐：上跳 + 左右微偏
+    const rc = g.recoil
+    this.punch = rc.camY          // 快速上跳
+    this.camTiltX = rc.camY * 0.6 // 相机倾斜
+    this.camYaw = (Math.random() - 0.5) * rc.camYaw * 2 // 随机左右偏
+
+    // 屏幕震感
+    this.shake = rc.shakeAmp
+    this.shakeDecay = 1 / rc.shakeFreq
+
     this.flash.intensity = 3
     this.muzzle.material.opacity = 1
 
@@ -183,10 +180,7 @@ export class WeaponSystem {
 
   findEnemyRoot(obj) {
     let o = obj
-    while (o) {
-      if (o.userData.enemyGroup) return o
-      o = o.parent
-    }
+    while (o) { if (o.userData.enemyGroup) return o; o = o.parent }
     return null
   }
 
@@ -203,10 +197,7 @@ export class WeaponSystem {
       const d = to.length()
       if (d > CONFIG.weapon.assistRange || d < 0.5) continue
       const angle = to.normalize().angleTo(dir)
-      if (angle <= bestAngle) {
-        bestAngle = angle
-        best = { root, point: from.clone().add(dir.clone().multiplyScalar(d)) }
-      }
+      if (angle <= bestAngle) { bestAngle = angle; best = { root, point: from.clone().add(dir.clone().multiplyScalar(d)) } }
     }
     return best
   }
@@ -225,11 +216,7 @@ export class WeaponSystem {
   }
 
   setTracer(from, end) {
-    if (this.tracer) {
-      this.scene.remove(this.tracer)
-      this.tracer.geometry.dispose()
-      this.tracer.material.dispose()
-    }
+    if (this.tracer) { this.scene.remove(this.tracer); this.tracer.geometry.dispose(); this.tracer.material.dispose() }
     this.tracer = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([from, end]),
       new THREE.LineBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9 })
@@ -258,21 +245,43 @@ export class WeaponSystem {
     if (g.auto && this.mouseHeld) this.fire()
     this.updateAds(dt)
     if (g.fireTimer > 0) g.fireTimer -= dt
-    if (this.punch > 0) this.punch = Math.max(0, this.punch - dt * 0.35)
+
+    // 相机后坐恢复
+    this.punch = Math.max(0, this.punch - dt * 0.4)
     this.player.cameraRecoilY = this.punch
+
+    // 相机倾斜恢复
+    this.camTiltX *= Math.max(0, 1 - dt * 6)
+    this.player.cameraRotationX = this.camTiltX
+
+    // 相机偏转恢复
+    this.camYaw *= Math.max(0, 1 - dt * 5)
+    this.player.cameraYaw = this.camYaw
+
+    // 屏幕震感衰减
+    if (this.shake > 0) {
+      this.shake *= Math.max(0, 1 - dt * this.shakeDecay * 8)
+      if (this.shake < 0.0001) this.shake = 0
+    }
+    this.player.screenShake = this.shake
+
     const ads = this.adsHeld && g.adsFov
     const sway = ads ? Math.sin(performance.now() * 0.0022) * 0.004 : 0
     const targetY = (ads ? -0.18 : -0.4) + sway
     const targetX = (ads ? 0 : 0.25) + Math.cos(performance.now() * 0.0019) * 0.003
     this.player.gunGroup.position.x += (targetX - this.player.gunGroup.position.x) * Math.min(1, dt * 12)
     this.player.gunGroup.position.y += (targetY - this.player.gunGroup.position.y) * Math.min(1, dt * 12)
+
+    // 枪身后坐恢复
     const targetZ = -0.5
     if (this.kick > 0) {
-      this.kick = Math.max(0, this.kick - dt / 0.08)
-      this.player.gunGroup.position.z = targetZ + this.kick * 0.12
+      const rc = g.recoil
+      this.kick = Math.max(0, this.kick - dt * (1 / rc.kick * 8))
+      this.player.gunGroup.position.z = targetZ + this.kick * rc.kick
     } else {
       this.player.gunGroup.position.z += (targetZ - this.player.gunGroup.position.z) * Math.min(1, dt * 12)
     }
+
     this.flash.intensity = Math.max(0, this.flash.intensity - dt * 40)
     this.muzzle.material.opacity = Math.max(0, this.muzzle.material.opacity - dt * 22)
     for (const s of this.sparks) {
@@ -286,11 +295,7 @@ export class WeaponSystem {
     if (g.reloading) {
       g.reloadTimer -= dt
       this.player.gunGroup.rotation.x = -0.6 * Math.sin(Math.min(1, 1 - g.reloadTimer / g.reloadTime) * Math.PI)
-      if (g.reloadTimer <= 0) {
-        g.ammo = g.magSize
-        g.reloading = false
-        this.player.gunGroup.rotation.x = 0
-      }
+      if (g.reloadTimer <= 0) { g.ammo = g.magSize; g.reloading = false; this.player.gunGroup.rotation.x = 0 }
     }
     if (this.tracer) {
       this.tracer.userData.life -= dt
@@ -310,22 +315,10 @@ export class WeaponSystem {
     if (key === 'mag') g.magSize += 3
   }
 
-  getAmmoText() {
-    const g = this.gun
-    return g.reloading ? '换弹中…' : `${g.magSize} / ${g.ammo}`
-  }
-
-  getReloadHint() {
-    return this.gun.reloading ? '换弹中…' : 'R 换弹'
-  }
-
-  getGunName() {
-    return this.gun.label
-  }
-
-  getGunDisplay() {
-    return `${this.gun.label}（${this.keys.indexOf(this.active) + 1}）`
-  }
+  getAmmoText() { const g = this.gun; return g.reloading ? '换弹中…' : `${g.magSize} / ${g.ammo}` }
+  getReloadHint() { return this.gun.reloading ? '换弹中…' : 'R 换弹' }
+  getGunName() { return this.gun.label }
+  getGunDisplay() { return `${this.gun.label}（${this.keys.indexOf(this.active) + 1}）` }
 
   resetUpgrades() {
     this.unlocked = new Set(['pistol'])

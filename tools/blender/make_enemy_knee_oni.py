@@ -76,8 +76,8 @@ horn_l = add_child(root, 'horn_l', 'cone', (-0.09, 0, 0.68), (0.04, 0.04, 0.12),
 horn_r = add_child(root, 'horn_r', 'cone', ( 0.09, 0, 0.68), (0.04, 0.04, 0.12), (0.3, 0,-0.2), mat_horn)
 ear_l = add_child(root, 'ear_l', 'cone', (-0.14, 0, 0.60), (0.05, 0.05, 0.10), (0, 0, 0.4), mat_skin)
 ear_r = add_child(root, 'ear_r', 'cone', ( 0.14, 0, 0.60), (0.05, 0.05, 0.10), (0, 0,-0.4), mat_skin)
-eye_l = add_child(root, 'eye_l', 'sphere', (-0.05, 0.10, 0.60), (0.03, 0.03, 0.03), (0,0,0), mat_eye)
-eye_r = add_child(root, 'eye_r', 'sphere', ( 0.05, 0.10, 0.60), (0.03, 0.03, 0.03), (0,0,0), mat_eye)
+eye_l = add_child(root, 'eye_l', 'sphere', (-0.05, 0.10, 0.60), (0.05, 0.05, 0.05), (0,0,0), mat_eye)
+eye_r = add_child(root, 'eye_r', 'sphere', ( 0.05, 0.10, 0.60), (0.05, 0.05, 0.05), (0,0,0), mat_eye)
 mouth = add_child(root, 'mouth', 'cube', (0, 0.12, 0.52), (0.06, 0.01, 0.02), (0,0,0), mat_pupil)
 
 # 左臂

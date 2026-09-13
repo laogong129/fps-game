@@ -238,7 +238,7 @@ export class Spawner {
     const e = this.enemies[i]
     const pos = e.group.position.clone()
     if (damageEnemy(e, damage, this.scene)) {
-      this.enemies.splice(i, 1)
+      // 不立即移除，等死亡动画播完（update 中检测 deathState === 'done'）
       if (e.def.behavior === 'splitter') this.spawnMinibugs(pos)
       this.events.onEnemyKilled(e, e.type)
     }

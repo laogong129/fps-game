@@ -38,6 +38,62 @@ function fireReady() {
 
 loadEnemyModel(() => { fireReady() })
 
+// ── 死亡特效粒子系统 ──
+const particlePool = []
+const MAX_PARTICLES = 200
+let _scene = null
+export function setEnemyScene(scene) { _scene = scene }
+
+function spawnDeathParticles(pos, color, count = 15) {
+  const scene = _scene
+  if (!scene) return
+  const particleGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06)
+  for (let i = 0; i < count; i++) {
+    let p = particlePool.length > 0 ? particlePool.pop() : null
+    if (!p) {
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true })
+      p = { mesh: new THREE.Mesh(particleGeo, mat), vel: new THREE.Vector3(), life: 0 }
+    }
+    p.mesh.material.color.setHex(color)
+    p.mesh.position.copy(pos)
+    p.mesh.position.x += (Math.random() - 0.5) * 0.3
+    p.mesh.position.y += Math.random() * 0.5
+    p.mesh.position.z += (Math.random() - 0.5) * 0.3
+    p.vel.set(
+      (Math.random() - 0.5) * 4,
+      Math.random() * 3 + 1,
+      (Math.random() - 0.5) * 4
+    )
+    p.life = 0.8 + Math.random() * 0.4
+    p.mesh.visible = true
+    scene.add(p.mesh)
+    p.mesh.material.opacity = 1.0
+    particlePool.push(p)
+  }
+}
+
+export function updateParticles(dt) {
+  for (let i = particlePool.length - 1; i >= 0; i--) {
+    const p = particlePool[i]
+    p.life -= dt
+    if (p.life <= 0) {
+      p.mesh.visible = false
+      p.mesh.material.dispose()
+      p.mesh.geometry.dispose()
+      particlePool.splice(i, 1)
+      continue
+    }
+    p.vel.y -= 9.8 * dt
+    p.mesh.position.addScaledVector(p.vel, dt)
+    p.mesh.rotation.x += dt * 5
+    p.mesh.rotation.z += dt * 3
+    const t = Math.max(0, p.life / 0.8)
+    p.mesh.material.opacity = t
+    p.mesh.scale.setScalar(0.5 + t * 0.5)
+  }
+}
+
+// ── 敌人创建 ──
 export function createEnemy(type, hpMultiplier, scene) {
   const def = CONFIG.enemy[type]
   const group = new THREE.Group()
@@ -78,11 +134,13 @@ export function createEnemy(type, hpMultiplier, scene) {
     action: null,
     animTime: 0,
     _pendingModel: type === 'small',
+    // 死亡动画状态
+    dead: false,
+    deathTimer: 0,
+    deathState: 'none', // none → hit → falling → vanish → done
   }
   if (type === 'small') {
-    whenModelReady((gltf) => {
-      populateEnemyModel(e, gltf, scene, type, hpMultiplier, def)
-    })
+    whenModelReady((gltf) => { populateEnemyModel(e, gltf, scene, type, hpMultiplier, def) })
   } else {
     createBoxEnemy(e, scene)
   }
@@ -171,14 +229,12 @@ function applySkinColor(model, type, def) {
 }
 
 function addPupilHighlights(model) {
-  // 把眼睛改成高亮的白色 BasicMaterial（不受toon影响），并往前移避免被头球体遮挡
   const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffee44 })
   model.traverse((o) => {
     if (!o.isMesh) return
     const name = o.name.toLowerCase()
     if (name === 'eye_l' || name === 'eye_r') {
       o.material = eyeMat
-      // 把眼睛往前推到头部前面
       o.position.z = 0.72
     }
   })
@@ -208,8 +264,80 @@ function addEyes(group, def) {
   }
 }
 
+// ── 死亡动画：前倾倒地 + 粒子血爆 ──
+export function startEnemyDeath(e, scene) {
+  if (e.dead) return
+  e.dead = true
+  e.deathState = 'hit'
+  e.deathTimer = 0
+
+  // 阶段1：闪红受击（0.15s）
+  if (e.body) {
+    e.body.traverse((o) => {
+      if (o.isMesh && o.material && !o.userData.isOutline && o.material.emissive) {
+        o.material.emissive.setHex(0xff0000)
+      }
+    })
+  }
+
+  // 粒子爆发（红色/本敌颜色）
+  const pos = e.group.position.clone()
+  pos.y += e.def.size * 0.4
+  spawnDeathParticles(pos, e.def.color, 18)
+}
+
+export function updateEnemyDeath(e, dt) {
+  if (!e.dead) return
+  e.deathTimer += dt
+
+  if (e.deathState === 'hit') {
+    if (e.deathTimer >= 0.15) {
+      e.deathState = 'falling'
+      e.deathTimer = 0
+      // 恢复 emissive
+      if (e.body) {
+        e.body.traverse((o) => {
+          if (o.isMesh && o.material && !o.userData.isOutline && o.material.emissive) {
+            o.material.emissive.setHex(0x000000)
+          }
+        })
+      }
+    }
+  } else if (e.deathState === 'falling') {
+    // 向前倒下：绕 X 轴旋转 90°
+    const progress = Math.min(1, e.deathTimer / 0.4)
+    const eased = 1 - Math.pow(1 - progress, 3)
+    e.group.rotation.x = eased * (Math.PI / 2)
+    e.group.position.y = Math.max(0, -eased * 0.05)
+    if (progress >= 1) {
+      e.deathState = 'vanish'
+      e.deathTimer = 0
+    }
+  } else if (e.deathState === 'vanish') {
+    const progress = Math.min(1, e.deathTimer / 0.3)
+    if (e.body) {
+      e.body.traverse((o) => {
+        if (o.isMesh && o.material) {
+          if (o.material.transparent === undefined) {
+            o.material = o.material.clone()
+            o.material.transparent = true
+          }
+          o.material.opacity = 1 - progress
+        }
+      })
+    }
+    if (e.hpBar && e.hpBar.material) {
+      e.hpBar.material.opacity = 1 - progress
+    }
+    if (progress >= 1) {
+      e.deathState = 'done'
+    }
+  }
+}
+
+// ── 朝向玩家 ──
 export function facePlayer(e, playerPos) {
-  // 让小怪朝向玩家（绕Y轴旋转）
+  if (e.dead) return
   const pos = e.group.position
   const dir = playerPos.clone().sub(pos)
   dir.y = 0
@@ -219,12 +347,14 @@ export function facePlayer(e, playerPos) {
   }
 }
 
+// ── 移动逻辑 ──
 export function chaseEnemy(e, playerPos, dt, inner, others, api) {
   moveToward(e, playerPos, dt, inner, others, api)
   facePlayer(e, playerPos)
 }
 
 function moveToward(e, playerPos, dt, inner, others, api) {
+  if (e.dead) return
   const half = e.def.size / 2
   const pos = e.group.position
   const obstacles = api?.obstacles
@@ -271,6 +401,7 @@ function moveToward(e, playerPos, dt, inner, others, api) {
 }
 
 export function updateSpitter(e, playerPos, dt, inner, others, api) {
+  if (e.dead) return
   const dist = e.group.position.distanceTo(playerPos)
   if (dist > e.def.standRange) {
     moveToward(e, playerPos, dt, inner, others, api)
@@ -293,6 +424,7 @@ export function updateSpitter(e, playerPos, dt, inner, others, api) {
 }
 
 export function updateCharger(e, playerPos, dt, inner, others, api) {
+  if (e.dead) return
   const dist = e.group.position.distanceTo(playerPos)
   const dir = playerPos.clone().sub(e.group.position)
   dir.y = 0
@@ -348,6 +480,7 @@ export function updateCharger(e, playerPos, dt, inner, others, api) {
 }
 
 export function updateBoss(e, playerPos, dt, inner, others, api) {
+  if (e.dead) return
   moveToward(e, playerPos, dt, inner, others, api)
   e.ringTimer -= dt
   e.summonTimer -= dt
@@ -390,17 +523,7 @@ export function damageEnemy(enemy, amount, scene) {
     }, 80)
   }
   if (enemy.hp <= 0) {
-    scene.remove(enemy.group)
-    enemy.group.traverse((o) => {
-      if (o.isMesh) {
-        o.geometry.dispose()
-        if (o.material) {
-          if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose())
-          else o.material.dispose()
-        }
-      }
-    })
-    if (enemy.mixer) enemy.mixer.stopAllAction()
+    startEnemyDeath(enemy, scene)
     return true
   }
   return false
@@ -409,4 +532,5 @@ export function damageEnemy(enemy, amount, scene) {
 export function updateEnemyAnim(e, dt) {
   if (e._pendingModel) return
   if (e.mixer) e.mixer.update(dt)
+  updateEnemyDeath(e, dt)
 }

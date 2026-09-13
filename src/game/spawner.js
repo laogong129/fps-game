@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { CONFIG, waveSpawnCount } from '../config.js'
 import {
-  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy, updateEnemyAnim,
+  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy, updateEnemyAnim, updateParticles, setEnemyScene,
 } from './enemy.js'
 
 export class Spawner {
@@ -199,6 +199,14 @@ export class Spawner {
       }
     }
     this.updateProjectiles(dt, playerPos)
+    updateParticles(dt)
+    // 清理已死亡的敌人
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      if (this.enemies[i].dead && this.enemies[i].deathState === 'done') {
+        this.scene.remove(this.enemies[i].group)
+        this.enemies.splice(i, 1)
+      }
+    }
   }
 
   updateProjectiles(dt, playerPos) {

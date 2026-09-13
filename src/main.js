@@ -10,6 +10,7 @@ import { Hud } from './game/hud.js'
 import { FloatingText } from './game/text.js'
 import { playShot, playHit, playReload, playLevelUp } from './game/sound.js'
 import { applyAnimeStyle } from './game/style.js'
+import { setEnemyScene } from './game/enemy.js'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
@@ -26,6 +27,7 @@ window.addEventListener('resize', () => {
 })
 
 const arena = createArena(scene, null)
+setEnemyScene(scene)
 new GLTFLoader().load('/assets/temple.glb', (gltf) => {
   gltf.scene.traverse((o) => { if (o.isMesh) o.castShadow = true })
   applyAnimeStyle(gltf.scene)

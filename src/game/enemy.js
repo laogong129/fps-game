@@ -171,19 +171,15 @@ function applySkinColor(model, type, def) {
 }
 
 function addPupilHighlights(model) {
-  // 在眼睛位置添加白色高光球，增强可见度
-  const highlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff })
+  // 把眼睛改成高亮的白色 BasicMaterial（不受toon影响），并往前移避免被头球体遮挡
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffee44 })
   model.traverse((o) => {
     if (!o.isMesh) return
     const name = o.name.toLowerCase()
     if (name === 'eye_l' || name === 'eye_r') {
-      // 主眼（黄色发光）已经是 MeshToonMaterial with emissive，保留
-      // 添加一个小的高光点
-      const hlGeo = new THREE.SphereGeometry(0.008, 6, 6)
-      const offset = name === 'eye_l' ? -0.01 : 0.01
-      const hl = new THREE.Mesh(hlGeo, highlightMat)
-      hl.position.set(offset, 0.01, 0.02)
-      o.add(hl)
+      o.material = eyeMat
+      // 把眼睛往前推到头部前面
+      o.position.z = 0.72
     }
   })
 }

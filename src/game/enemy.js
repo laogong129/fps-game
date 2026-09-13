@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { CONFIG } from '../config.js'
 import { makeTextSprite, updateSpriteText } from './text.js'
 import { resolveObstacles } from './arena.js'
-import { applyAnimeStyle } from './style.js'
+import { applyAnimeStyle, makeToon, addOutline } from './style.js'
 
 const loader = new GLTFLoader()
 let cachedModel = null
@@ -75,12 +75,32 @@ export function createEnemy(type, hpMultiplier, scene) {
     mixer: null,
     action: null,
     animTime: 0,
-    _pendingModel: true,
+    _pendingModel: type === 'small',
   }
-  whenModelReady((gltf) => {
-    populateEnemyModel(e, gltf, scene, type, hpMultiplier, def)
-  })
+  if (type === 'small') {
+    whenModelReady((gltf) => {
+      populateEnemyModel(e, gltf, scene, type, hpMultiplier, def)
+    })
+  } else {
+    createBoxEnemy(e, scene)
+  }
   return e
+}
+
+function createBoxEnemy(e, scene) {
+  const def = e.def
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(def.size, def.size, def.size),
+    makeToon(def.color)
+  )
+  body.position.y = def.size / 2
+  body.castShadow = true
+  addOutline(body, 1.03)
+  e.group.add(body)
+  addEyes(e.group, def)
+  e.body = body
+  e._pendingModel = false
+  scene.add(e.group)
 }
 
 function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
@@ -142,8 +162,44 @@ function applySkinColor(model, type, def) {
   applyAnimeStyle(model)
 }
 
+function addEyes(group, def) {
+  const eyeGeo = new THREE.SphereGeometry(def.size * 0.09, 8, 8)
+  const eyeMat = makeToon(0xffffff, def.behavior === 'boss' ? 0xff2200 : 0xffcc00, 2)
+  const ex = def.size * 0.28
+  const ez = def.size * 0.5
+  const ey = def.size * 0.62
+  const l = new THREE.Mesh(eyeGeo, eyeMat)
+  l.position.set(-ex, ey, ez)
+  const r = new THREE.Mesh(eyeGeo, eyeMat)
+  r.position.set(ex, ey, ez)
+  group.add(l, r)
+  if (def.behavior === 'boss') {
+    const hornGeo = new THREE.ConeGeometry(def.size * 0.18, def.size * 0.5, 6)
+    const hornMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5 })
+    const h1 = new THREE.Mesh(hornGeo, hornMat)
+    h1.position.set(-def.size * 0.4, def.size + 0.1, 0)
+    h1.rotation.z = 0.5
+    const h2 = new THREE.Mesh(hornGeo, hornMat)
+    h2.position.set(def.size * 0.4, def.size + 0.1, 0)
+    h2.rotation.z = -0.5
+    group.add(h1, h2)
+  }
+}
+
+export function facePlayer(e, playerPos) {
+  // 让小怪朝向玩家（绕Y轴旋转）
+  const pos = e.group.position
+  const dir = playerPos.clone().sub(pos)
+  dir.y = 0
+  if (dir.lengthSq() > 0.01) {
+    const angle = Math.atan2(dir.x, dir.z)
+    e.group.rotation.y = angle
+  }
+}
+
 export function chaseEnemy(e, playerPos, dt, inner, others, api) {
   moveToward(e, playerPos, dt, inner, others, api)
+  facePlayer(e, playerPos)
 }
 
 function moveToward(e, playerPos, dt, inner, others, api) {
@@ -228,20 +284,24 @@ export function updateCharger(e, playerPos, dt, inner, others, api) {
   } else if (e.state === 'telegraph') {
     e.stateTimer -= dt
     e.group.position.add(dir.multiplyScalar(0.4 * dt))
-    e.body.traverse((o) => {
-      if (o.isMesh && o.material && !o.userData.isOutline) {
-        o.material.emissive.setHSL(0.55, 1, 0.25 + 0.25 * Math.abs(Math.sin(e.stateTimer * 18)))
-      }
-    })
+    if (e.body) {
+      e.body.traverse((o) => {
+        if (o.isMesh && o.material && !o.userData.isOutline) {
+          o.material.emissive.setHSL(0.55, 1, 0.25 + 0.25 * Math.abs(Math.sin(e.stateTimer * 18)))
+        }
+      })
+    }
     if (e.stateTimer <= 0) {
       e.state = 'charge'
       e.stateTimer = e.def.chargeTime
       e.chargeDir.copy(dir)
-      e.body.traverse((o) => {
-        if (o.isMesh && o.material && !o.userData.isOutline) {
-          o.material.emissive.setHex(0x882200)
-        }
-      })
+      if (e.body) {
+        e.body.traverse((o) => {
+          if (o.isMesh && o.material && !o.userData.isOutline) {
+            o.material.emissive.setHex(0x882200)
+          }
+        })
+      }
     }
   } else if (e.state === 'charge') {
     e.stateTimer -= dt
@@ -251,11 +311,13 @@ export function updateCharger(e, playerPos, dt, inner, others, api) {
     if (e.stateTimer <= 0) {
       e.state = 'recover'
       e.stateTimer = e.def.chargeCd
-      e.body.traverse((o) => {
-        if (o.isMesh && o.material && !o.userData.isOutline) {
-          o.material.emissive.setHex(0x000000)
-        }
-      })
+      if (e.body) {
+        e.body.traverse((o) => {
+          if (o.isMesh && o.material && !o.userData.isOutline) {
+            o.material.emissive.setHex(0x000000)
+          }
+        })
+      }
     }
   } else if (e.state === 'recover') {
     e.stateTimer -= dt

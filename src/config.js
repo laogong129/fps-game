@@ -35,8 +35,12 @@ export const CONFIG = {
 
   gunShape: {
     pistol: [
-      { size: [0.08, 0.08, 0.4], pos: [0, 0, -0.12], color: 0x333344 },
-      { size: [0.06, 0.1, 0.07], pos: [0, -0.09, -0.2], color: 0x2a2a35 },
+      { size: [0.07, 0.07, 0.32], pos: [0, 0.02, -0.18], color: 0xe8e8f0 },
+      { size: [0.05, 0.05, 0.06], pos: [0, 0.04, 0.02], color: 0xd0d0dc },
+      { size: [0.03, 0.06, 0.04], pos: [0, -0.04, -0.08], color: 0x222230 },
+      { size: [0.055, 0.1, 0.06], pos: [0, -0.12, -0.04], color: 0x3a3a4a },
+      { size: [0.01, 0.015, 0.01], pos: [0, 0.065, -0.34], color: 0xffffff },
+      { size: [0.02, 0.012, 0.01], pos: [0, 0.06, 0.01], color: 0xffffff },
     ],
     shotgun: [
       { size: [0.1, 0.1, 0.42], pos: [0, 0, -0.14], color: 0x555566 },

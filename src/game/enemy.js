@@ -48,9 +48,11 @@ export function createEnemy(type, hpMultiplier, scene) {
     new THREE.MeshBasicMaterial({ color: 0x22cc44 })
   )
   hpBar.position.y = def.size + 0.3
+  hpBar.userData.isHpBar = true
   group.add(hpBar)
   const hpText = makeTextSprite(`${Math.ceil(def.hp * hpMultiplier)}`, { color: '#ff8888', size: 40 })
   hpText.position.y = def.size + 0.7
+  hpText.userData.isHpText = true
   group.add(hpText)
   group.userData.enemyGroup = true
   group.userData.centerHeight = def.size / 2
@@ -112,9 +114,14 @@ function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
       if (o.material) o.material = o.material.clone()
     }
   })
-  while (e.group.children.length) {
-    const c = e.group.children[0]
-    if (c.isMesh && c.userData.isOutline) { c.geometry.dispose(); c.material.dispose() }
+  // 移除旧占位内容，保留 HP 条和文字
+  const toRemove = []
+  for (const c of e.group.children) {
+    if (c.userData.isHpBar || c.userData.isHpText) continue
+    toRemove.push(c)
+  }
+  for (const c of toRemove) {
+    if (c.userData.isOutline) { c.geometry.dispose(); c.material.dispose() }
     e.group.remove(c)
   }
   e.group.add(model)

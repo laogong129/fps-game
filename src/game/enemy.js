@@ -127,6 +127,7 @@ function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
   e.group.add(model)
   e.body = model
   applySkinColor(model, type, def)
+  addPupilHighlights(model)
   if (gltf.clip) {
     e.mixer = new THREE.AnimationMixer(model)
     e.action = e.mixer.clipAction(gltf.clip)
@@ -167,6 +168,24 @@ function applySkinColor(model, type, def) {
   const scale = def.size / 0.7
   model.scale.setScalar(scale)
   applyAnimeStyle(model)
+}
+
+function addPupilHighlights(model) {
+  // 在眼睛位置添加白色高光球，增强可见度
+  const highlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff })
+  model.traverse((o) => {
+    if (!o.isMesh) return
+    const name = o.name.toLowerCase()
+    if (name === 'eye_l' || name === 'eye_r') {
+      // 主眼（黄色发光）已经是 MeshToonMaterial with emissive，保留
+      // 添加一个小的高光点
+      const hlGeo = new THREE.SphereGeometry(0.008, 6, 6)
+      const offset = name === 'eye_l' ? -0.01 : 0.01
+      const hl = new THREE.Mesh(hlGeo, highlightMat)
+      hl.position.set(offset, 0.01, 0.02)
+      o.add(hl)
+    }
+  })
 }
 
 function addEyes(group, def) {
@@ -293,7 +312,7 @@ export function updateCharger(e, playerPos, dt, inner, others, api) {
     e.group.position.add(dir.multiplyScalar(0.4 * dt))
     if (e.body) {
       e.body.traverse((o) => {
-        if (o.isMesh && o.material && !o.userData.isOutline) {
+        if (o.isMesh && o.material && !o.userData.isOutline && o.material.emissive) {
           o.material.emissive.setHSL(0.55, 1, 0.25 + 0.25 * Math.abs(Math.sin(e.stateTimer * 18)))
         }
       })
@@ -304,7 +323,7 @@ export function updateCharger(e, playerPos, dt, inner, others, api) {
       e.chargeDir.copy(dir)
       if (e.body) {
         e.body.traverse((o) => {
-          if (o.isMesh && o.material && !o.userData.isOutline) {
+          if (o.isMesh && o.material && !o.userData.isOutline && o.material.emissive) {
             o.material.emissive.setHex(0x882200)
           }
         })
@@ -362,13 +381,13 @@ export function damageEnemy(enemy, amount, scene) {
   updateSpriteText(enemy.hpText, `${Math.max(0, Math.ceil(enemy.hp))}`, { color: '#ff8888', size: 40 })
   if (enemy.body) {
     enemy.body.traverse((o) => {
-      if (o.isMesh && o.material && !o.userData.isOutline) {
+      if (o.isMesh && o.material && !o.userData.isOutline && o.material.emissive) {
         o.material.emissive.setHex(0x662200)
       }
     })
     setTimeout(() => {
       if (enemy.body) enemy.body.traverse((o) => {
-        if (o.isMesh && o.material && !o.userData.isOutline) {
+        if (o.isMesh && o.material && !o.userData.isOutline && o.material.emissive) {
           o.material.emissive.setHex(0x000000)
         }
       })

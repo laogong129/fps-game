@@ -327,6 +327,8 @@ let fpsShown = 0
 function toggleDebug() {
   debugOn = !debugOn
   document.getElementById('debug-panel').classList.toggle('hide', !debugOn)
+  if (!collWire) buildCollisionWires()
+  collWire.visible = debugOn
 }
 
 function jumpToLevel() {

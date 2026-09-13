@@ -31,22 +31,27 @@ export class LevelUp {
 
   spawnPickup(pos) {
     if (this.pickups.length >= CONFIG.pickup.maxOrbs) return
-    const m = new THREE.Mesh(this.pickupGeo, this.pickupMat)
+    const m = new THREE.Mesh(this.pickupGeo, this.pickupMat.clone())
     m.position.copy(pos)
     m.position.y = 0.5
     m.position.x += (Math.random() - 0.5) * 1.2
     m.position.z += (Math.random() - 0.5) * 1.2
     m.userData.age = 0
+    m.userData.ttl = CONFIG.pickup.ttl
+    m.userData.fadeStart = CONFIG.pickup.fadeStart
     this.scene.add(m)
     this.pickups.push(m)
   }
 
   spawnHeal(kind, pos) {
     const def = CONFIG.heal[kind]
-    const m = new THREE.Mesh(this.healGeo, this.healMats[kind])
+    const m = new THREE.Mesh(this.healGeo, this.healMats[kind].clone())
     m.scale.setScalar(def.radius)
     m.position.copy(pos)
     m.position.y = 0.6
+    m.userData.age = 0
+    m.userData.ttl = def.ttl
+    m.userData.fadeStart = def.fadeStart
     this.scene.add(m)
     this.heals.push({ mesh: m, kind })
   }
@@ -66,6 +71,18 @@ export class LevelUp {
         onHealFloat(h.mesh.position, this.player.hp - before)
         this.scene.remove(h.mesh)
         this.heals.splice(i, 1)
+        continue
+      }
+      // 超时移除（淡出后移除）
+      h.mesh.userData.age += dt
+      if (h.mesh.userData.age >= h.mesh.userData.fadeStart) {
+        const remaining = h.mesh.userData.ttl - h.mesh.userData.age
+        h.mesh.material.opacity = Math.max(0, remaining / (h.mesh.userData.ttl - h.mesh.userData.fadeStart))
+        h.mesh.material.transparent = true
+      }
+      if (h.mesh.userData.age >= h.mesh.userData.ttl) {
+        this.scene.remove(h.mesh)
+        this.heals.splice(i, 1)
       }
     }
   }
@@ -78,11 +95,24 @@ export class LevelUp {
   update(dt, playerPos) {
     const pp = playerPos.clone()
     pp.y = 0
-    const { magnetRange, collectRange, maxOrbs } = CONFIG.pickup
+    const { magnetRange, collectRange, maxOrbs, fadeStart } = CONFIG.pickup
     let total = this.pickups.length
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const p = this.pickups[i]
       p.userData.age += dt
+      // 淡出：快到超时前逐渐透明
+      if (p.userData.age >= p.userData.fadeStart) {
+        const remaining = p.userData.ttl - p.userData.age
+        p.material.opacity = Math.max(0, remaining / (p.userData.ttl - p.userData.fadeStart))
+        p.material.transparent = true
+      }
+      // 超时移除
+      if (p.userData.age >= p.userData.ttl) {
+        this.scene.remove(p)
+        this.pickups.splice(i, 1)
+        total--
+        continue
+      }
       if (total > maxOrbs && p.userData.age > 2) {
         this.scene.remove(p)
         this.pickups.splice(i, 1)

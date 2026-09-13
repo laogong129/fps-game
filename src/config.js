@@ -166,6 +166,12 @@ export const CONFIG = {
     magnetRange: 6.0,
     collectRange: 1.2,
     maxOrbs: 60,
+    ttl: 5,
+    fadeStart: 3,
+  },
+  heal: {
+    small: { value: 15, chance: 0.2, color: 0xe74c3c, radius: 0.45, ttl: 5, fadeStart: 3 },
+    tank: { value: 60, chance: 1.0, color: 0xffd700, radius: 0.6, ttl: 5, fadeStart: 3 },
   },
 
   crate: {

@@ -1,22 +1,48 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { CONFIG } from '../config.js'
 import { makeTextSprite, updateSpriteText } from './text.js'
 import { resolveObstacles } from './arena.js'
-import { makeToon, addOutline } from './style.js'
+import { applyAnimeStyle } from './style.js'
+
+const loader = new GLTFLoader()
+let cachedModel = null
+let pendingLoads = 0
+
+export function loadEnemyModel(onReady) {
+  if (cachedModel) { onReady(cachedModel); return }
+  pendingLoads++
+  loader.load('/assets/enemy_knee_oni.glb', (gltf) => {
+    cachedModel = gltf
+    if (gltf.animations.length > 0) {
+      cachedModel.clip = gltf.animations[0]
+    }
+    pendingLoads--
+    if (pendingLoads === 0) onReady(cachedModel)
+  })
+}
+
+let modelReady = false
+let readyQueue = []
+
+export function whenModelReady(cb) {
+  if (modelReady) { cb(cachedModel) }
+  else { readyQueue.push(cb) }
+}
+
+function fireReady() {
+  modelReady = true
+  for (const cb of readyQueue) cb(cachedModel)
+  readyQueue.length = 0
+}
+
+loadEnemyModel(() => { fireReady() })
 
 export function createEnemy(type, hpMultiplier, scene) {
   const def = CONFIG.enemy[type]
   const group = new THREE.Group()
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(def.size, def.size, def.size),
-    makeToon(def.color)
-  )
-  body.position.y = def.size / 2
-  body.castShadow = true
-  addOutline(body, 1.03)
-  group.add(body)
-  addEyes(group, def)
-
+  group.userData.isEnemyPlaceholder = true
+  scene.add(group)
   const hpBar = new THREE.Mesh(
     new THREE.PlaneGeometry(def.size, 0.12),
     new THREE.MeshBasicMaterial({ color: 0x22cc44 })
@@ -28,13 +54,12 @@ export function createEnemy(type, hpMultiplier, scene) {
   group.add(hpText)
   group.userData.enemyGroup = true
   group.userData.centerHeight = def.size / 2
-  scene.add(group)
   const hp = def.hp * hpMultiplier
   const e = {
     type,
     def,
     group,
-    body,
+    body: null,
     hpBar,
     hpText,
     hp,
@@ -47,32 +72,74 @@ export function createEnemy(type, hpMultiplier, scene) {
     orbitTimer: 0,
     orbitDir: 1,
     chargeDir: new THREE.Vector3(),
+    mixer: null,
+    action: null,
+    animTime: 0,
+    _pendingModel: true,
   }
+  whenModelReady((gltf) => {
+    populateEnemyModel(e, gltf, scene, type, hpMultiplier, def)
+  })
   return e
 }
 
-function addEyes(group, def) {
-  const eyeGeo = new THREE.SphereGeometry(def.size * 0.09, 8, 8)
-  const eyeMat = makeToon(0xffffff, def.behavior === 'boss' ? 0xff2200 : 0xffcc00, 2)
-  const ex = def.size * 0.28
-  const ez = def.size * 0.5
-  const ey = def.size * 0.62
-  const l = new THREE.Mesh(eyeGeo, eyeMat)
-  l.position.set(-ex, ey, ez)
-  const r = new THREE.Mesh(eyeGeo, eyeMat)
-  r.position.set(ex, ey, ez)
-  group.add(l, r)
-  if (def.behavior === 'boss') {
-    const hornGeo = new THREE.ConeGeometry(def.size * 0.18, def.size * 0.5, 6)
-    const hornMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5 })
-    const h1 = new THREE.Mesh(hornGeo, hornMat)
-    h1.position.set(-def.size * 0.4, def.size + 0.1, 0)
-    h1.rotation.z = 0.5
-    const h2 = new THREE.Mesh(hornGeo, hornMat)
-    h2.position.set(def.size * 0.4, def.size + 0.1, 0)
-    h2.rotation.z = -0.5
-    group.add(h1, h2)
+function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
+  e._pendingModel = false
+  const model = gltf.scene.clone(true)
+  model.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true
+      if (o.material) o.material = o.material.clone()
+    }
+  })
+  while (e.group.children.length) {
+    const c = e.group.children[0]
+    if (c.isMesh && c.userData.isOutline) { c.geometry.dispose(); c.material.dispose() }
+    e.group.remove(c)
   }
+  e.group.add(model)
+  e.body = model
+  applySkinColor(model, type, def)
+  if (gltf.clip) {
+    e.mixer = new THREE.AnimationMixer(model)
+    e.action = e.mixer.clipAction(gltf.clip)
+    e.action.loop = THREE.LoopRepeat
+    e.action.play()
+  }
+  e.group.userData.centerHeight = def.size / 2
+  e.hpBar.position.y = def.size + 0.3
+  e.hpText.position.y = def.size + 0.7
+  updateSpriteText(e.hpText, `${Math.ceil(def.hp * hpMult)}`, { color: '#ff8888', size: 40 })
+  scene.add(e.group)
+}
+
+function applySkinColor(model, type, def) {
+  const colorMap = {
+    small: 0xe74c3c,
+    tank: 0x9b59b6,
+    spitter: 0x2ecc71,
+    splitter: 0xf39c12,
+    minibug: 0xf5b041,
+    charger: 0xec2f64,
+    boss: 0x1abc9c,
+  }
+  const skinColor = colorMap[type] ?? def.color
+  model.traverse((o) => {
+    if (!o.isMesh || !o.material) return
+    const name = o.name.toLowerCase()
+    if (name.includes('skin') || name.includes('torso') || name.includes('belt') ||
+        name.includes('ear') || name.includes('thigh') || name.includes('shin') ||
+        name.includes('foot') || name.includes('uarm') || name.includes('farm') ||
+        name.includes('hand')) {
+      o.material.color.setHex(skinColor)
+    }
+    if (name.includes('horn')) {
+      o.material.color.setHex(0x8b1a1a)
+    }
+  })
+  const scale = def.size / 0.7
+  model.scale.setScalar(scale)
+  applyAnimeStyle(model)
 }
 
 export function chaseEnemy(e, playerPos, dt, inner, others, api) {
@@ -161,12 +228,20 @@ export function updateCharger(e, playerPos, dt, inner, others, api) {
   } else if (e.state === 'telegraph') {
     e.stateTimer -= dt
     e.group.position.add(dir.multiplyScalar(0.4 * dt))
-    e.body.material.emissive.setHSL(0.55, 1, 0.25 + 0.25 * Math.abs(Math.sin(e.stateTimer * 18)))
+    e.body.traverse((o) => {
+      if (o.isMesh && o.material && !o.userData.isOutline) {
+        o.material.emissive.setHSL(0.55, 1, 0.25 + 0.25 * Math.abs(Math.sin(e.stateTimer * 18)))
+      }
+    })
     if (e.stateTimer <= 0) {
       e.state = 'charge'
       e.stateTimer = e.def.chargeTime
       e.chargeDir.copy(dir)
-      e.body.material.emissive.setHex(0x882200)
+      e.body.traverse((o) => {
+        if (o.isMesh && o.material && !o.userData.isOutline) {
+          o.material.emissive.setHex(0x882200)
+        }
+      })
     }
   } else if (e.state === 'charge') {
     e.stateTimer -= dt
@@ -176,7 +251,11 @@ export function updateCharger(e, playerPos, dt, inner, others, api) {
     if (e.stateTimer <= 0) {
       e.state = 'recover'
       e.stateTimer = e.def.chargeCd
-      e.body.material.emissive.setHex(0x000000)
+      e.body.traverse((o) => {
+        if (o.isMesh && o.material && !o.userData.isOutline) {
+          o.material.emissive.setHex(0x000000)
+        }
+      })
     }
   } else if (e.state === 'recover') {
     e.stateTimer -= dt
@@ -212,12 +291,38 @@ export function enemyCenter(e) {
 export function damageEnemy(enemy, amount, scene) {
   enemy.hp -= amount
   updateSpriteText(enemy.hpText, `${Math.max(0, Math.ceil(enemy.hp))}`, { color: '#ff8888', size: 40 })
-  enemy.body.material.emissive = new THREE.Color(0x662200)
-  setTimeout(() => { if (enemy.body.material) enemy.body.material.emissive = new THREE.Color(0x000000) }, 80)
+  if (enemy.body) {
+    enemy.body.traverse((o) => {
+      if (o.isMesh && o.material && !o.userData.isOutline) {
+        o.material.emissive.setHex(0x662200)
+      }
+    })
+    setTimeout(() => {
+      if (enemy.body) enemy.body.traverse((o) => {
+        if (o.isMesh && o.material && !o.userData.isOutline) {
+          o.material.emissive.setHex(0x000000)
+        }
+      })
+    }, 80)
+  }
   if (enemy.hp <= 0) {
     scene.remove(enemy.group)
-    enemy.group.traverse((o) => o.isMesh && o.geometry.dispose())
+    enemy.group.traverse((o) => {
+      if (o.isMesh) {
+        o.geometry.dispose()
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose())
+          else o.material.dispose()
+        }
+      }
+    })
+    if (enemy.mixer) enemy.mixer.stopAllAction()
     return true
   }
   return false
+}
+
+export function updateEnemyAnim(e, dt) {
+  if (e._pendingModel) return
+  if (e.mixer) e.mixer.update(dt)
 }

@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { CONFIG, waveSpawnCount } from '../config.js'
 import {
-  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy,
+  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy, updateEnemyAnim,
 } from './enemy.js'
 
 export class Spawner {
@@ -182,6 +182,7 @@ export class Spawner {
       obstacles: this.events.obstacles,
     }
     for (const e of this.enemies) {
+      updateEnemyAnim(e, dt)
       const b = e.def.behavior
       if (b === 'spitter') updateSpitter(e, playerPos, dt, inner, this.enemies, api)
       else if (b === 'charger') updateCharger(e, playerPos, dt, inner, this.enemies, api)

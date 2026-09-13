@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh repo *)",
+      "Bash(curl -sI https://laogong129.github.io/fps-game/)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \"LISTENING\")",
+      "Bash(findstr \":5\")",
+      "Bash(\"E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe\" --background --python \"e:/vibecoding/fps-game/tools/blender/make_enemy_knee_oni.py\")",
+      "Bash('E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe' --background --python -c ' *)",
+      "Bash(\"E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe\" --background --python \"e:/vibecoding/fps-game/tools/blender/check_mat.py\")",
+      "Bash(\"E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe\" --background --python \"e:/vibecoding/fps-game/tools/blender/check_cone.py\")"
+    ]
+  }
+}

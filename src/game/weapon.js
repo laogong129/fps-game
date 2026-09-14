@@ -246,21 +246,21 @@ export class WeaponSystem {
     this.updateAds(dt)
     if (g.fireTimer > 0) g.fireTimer -= dt
 
-    // 相机后坐恢复
-    this.punch = Math.max(0, this.punch - dt * 0.4)
+    // 相机后坐恢复（三角洲风格：快回正）
+    this.punch = Math.max(0, this.punch - dt * 0.6)
     this.player.cameraRecoilY = this.punch
 
-    // 相机倾斜恢复
-    this.camTiltX *= Math.max(0, 1 - dt * 6)
+    // 相机倾斜恢复（快）
+    this.camTiltX *= Math.max(0, 1 - dt * 8)
     this.player.cameraTiltX = this.camTiltX
 
-    // 相机偏转恢复
-    this.camYaw *= Math.max(0, 1 - dt * 5)
+    // 相机偏转恢复（快）
+    this.camYaw *= Math.max(0, 1 - dt * 7)
     this.player.cameraYawOffset = this.camYaw
 
-    // 屏幕震感衰减
+    // 屏幕震感衰减（更快）
     if (this.shake > 0) {
-      this.shake *= Math.max(0, 1 - dt * this.shakeDecay * 8)
+      this.shake *= Math.max(0, 1 - dt * this.shakeDecay * 10)
       if (this.shake < 0.0001) this.shake = 0
     }
     this.player.screenShake = this.shake

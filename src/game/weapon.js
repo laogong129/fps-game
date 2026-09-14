@@ -252,11 +252,11 @@ export class WeaponSystem {
 
     // 相机倾斜恢复
     this.camTiltX *= Math.max(0, 1 - dt * 6)
-    this.player.cameraRotationX = this.camTiltX
+    this.player.cameraTiltX = this.camTiltX
 
     // 相机偏转恢复
     this.camYaw *= Math.max(0, 1 - dt * 5)
-    this.player.cameraYaw = this.camYaw
+    this.player.cameraYawOffset = this.camYaw
 
     // 屏幕震感衰减
     if (this.shake > 0) {

@@ -20,8 +20,8 @@ export class Player {
 
     // 后坐力/震感附加状态
     this.cameraRecoilY = 0
-    this.cameraRotationX = 0
-    this.cameraYaw = 0
+    this.cameraTiltX = 0    // 相机pitch偏移（后坐力上跳）
+    this.cameraYawOffset = 0 // 相机yaw偏移（后坐力左右偏）
     this.screenShake = 0
 
     this.gunGroup = new THREE.Group()
@@ -135,6 +135,16 @@ export class Player {
     }
     this.camera.position.copy(this.pos)
     if (this.cameraRecoilY) this.camera.position.y += this.cameraRecoilY
+    // 相机倾斜（pitch）— 在欧拉角基础上叠加
+    if (this.cameraTiltX !== 0 || this.cameraYawOffset !== 0) {
+      const euler = new THREE.Euler(
+        this.camera.rotation.x + this.cameraTiltX,
+        this.camera.rotation.y + this.cameraYawOffset,
+        0,
+        'YXZ'
+      )
+      this.camera.quaternion.setFromEuler(euler)
+    }
     // 屏幕震感：在相机位置加随机偏移（模拟打击感）
     if (this.screenShake > 0) {
       const s = this.screenShake * 0.5

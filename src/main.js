@@ -427,8 +427,8 @@ function loop() {
 
   if (state === 'playing' || state === 'won') {
     elapsed += dt
-    player.update(dt, arena.halfSize, spawner.getGroups(), false, arena.obstacles)
     weapon.update(dt)
+    player.update(dt, arena.halfSize, spawner.getGroups(), false, arena.obstacles)
     spawner.update(dt, player.pos, arena.halfSize - 0.5)
     levelup.update(dt, player.pos)
     levelup.updateHeals(dt, player.pos, (pos, amt) => floats.spawn(`+${Math.ceil(amt)}`, pos, '#44ff88'))

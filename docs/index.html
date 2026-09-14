@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FPS 幸存者围城</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
+      #game-canvas { display: block; }
+      .overlay {
+        position: fixed; inset: 0; display: none;
+        align-items: center; justify-content: center;
+        flex-direction: column; gap: 16px;
+        background: rgba(10, 10, 20, 0.85);
+        color: #fff; z-index: 10;
+      }
+      .overlay.show { display: flex; }
+      .overlay h1 { font-size: 42px; letter-spacing: 4px; }
+      .overlay .hint { color: #999; font-size: 14px; line-height: 1.8; text-align: center; }
+      .overlay .stats { font-size: 18px; line-height: 1.8; color: #ccc; }
+      .btn {
+        padding: 12px 48px; font-size: 18px; cursor: pointer;
+        background: #3a7afe; color: #fff; border: none; border-radius: 6px;
+      }
+      .btn:hover { background: #5a91ff; }
+      .hide { display: none !important; }
+      #dmg-flash {
+        position: fixed; inset: 0; pointer-events: none; z-index: 6;
+        background: radial-gradient(ellipse at center, transparent 55%, rgba(200,0,0,0.55) 100%);
+        opacity: 0; transition: opacity 0.25s;
+      }
+      #lock-hint {
+        position: fixed; left: 50%; top: 20%; transform: translateX(-50%);
+        z-index: 7; pointer-events: none; display: none;
+        background: rgba(0,0,0,0.6); color: #f1c40f; font-size: 16px;
+        padding: 10px 22px; border-radius: 8px; border: 1px solid rgba(241,196,15,0.4);
+      }
+      #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; color: #fff; }
+      .hud-panel {
+        position: absolute; background: rgba(0,0,0,0.4);
+        border-radius: 8px; padding: 10px 14px; backdrop-filter: blur(4px);
+      }
+      #hud-stats { left: 16px; top: 16px; font-size: 14px; line-height: 1.7; }
+      #hud-weapon { right: 16px; bottom: 16px; font-size: 22px; font-weight: bold; }
+      #hud-ammo { right: 16px; bottom: 54px; font-size: 13px; color: #aaa; }
+      .bar { width: 200px; height: 10px; background: rgba(255,255,255,0.15); border-radius: 5px; overflow: hidden; margin-top: 4px; }
+      .bar-fill { height: 100%; border-radius: 5px; transition: width 0.2s; }
+      #hp-fill { background: #e74c3c; }
+      #xp-fill { background: #f1c40f; }
+      #crosshair {
+        position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+        z-index: 4; pointer-events: none; color: rgba(255,255,255,0.85); font-size: 20px;
+      }
+      #levelup {
+        position: fixed; inset: 0; z-index: 8;
+        display: none; align-items: center; justify-content: center;
+        background: rgba(0,0,0,0.5);
+      }
+      #levelup.show { display: flex; }
+      #levelup-inner { text-align: center; color: #fff; }
+      #levelup-inner h2 { font-size: 30px; margin-bottom: 20px; color: #f1c40f; }
+      .choice {
+        display: inline-block; width: 180px; margin: 10px; padding: 18px;
+        background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.2);
+        border-radius: 10px; cursor: pointer; font-size: 15px;
+      }
+      .choice:hover { background: rgba(255,255,255,0.18); border-color: #f1c40f; }
+    </style>
+    <script type="module" crossorigin src="./assets/index-CG-8VDuP.js"></script>
+  </head>
+  <body>
+    <div id="game-canvas"></div>
+
+    <div class="overlay show" id="start-screen">
+      <h1>FPS 幸存者围城</h1>
+      <div class="hint">
+        WASD 移动 &nbsp;|&nbsp; Shift 冲刺 &nbsp;|&nbsp; 空格跳跃 &nbsp;|&nbsp; 鼠标瞄准 &nbsp;|&nbsp; 左键射击（按住全自动）&nbsp;|&nbsp; 右键瞄（步枪）&nbsp;|&nbsp; R 换弹 &nbsp;|&nbsp; 1/2/3 切枪<br>
+        击杀敌人获得经验，升级三选一（含新枪解锁），能撑多久？
+      </div>
+      <button class="btn" id="start-btn">开始游戏</button>
+    </div>
+
+    <div class="overlay" id="gameover-screen">
+      <h1 id="gameover-title">阵亡</h1>
+      <div class="stats" id="gameover-stats"></div>
+      <button class="btn" id="restart-btn">再来一局（Enter）</button>
+      <button class="btn hide" id="continue-btn">继续战斗（无尽模式）</button>
+    </div>
+
+    <div id="hud">
+      <div class="hud-panel" id="hud-stats">
+        波次 <b id="hud-wave">1</b> &nbsp; 击杀 <b id="hud-kills">0</b><br>
+        生命 <b id="hp-num">100/100</b>
+        <div class="bar"><div class="bar-fill" id="hp-fill" style="width:100%"></div></div>
+        经验 Lv.<b id="hud-level">1</b> <b id="xp-num">0/10</b>
+        <div class="bar"><div class="bar-fill" id="xp-fill" style="width:0%"></div></div>
+      </div>
+      <div class="hud-panel" id="hud-ammo">换弹中…</div>
+      <div class="hud-panel" id="hud-weapon-name" style="right:16px;bottom:84px;font-size:14px;color:#f1c40f">手枪（1）</div>
+      <div class="hud-panel" id="hud-weapon">8 / 5</div>
+      <div id="crosshair">+</div>
+    </div>
+    <div id="dmg-flash"></div>
+    <div id="lock-hint">
+      <div id="lock-hint-text">画面未锁定：点击按钮重新操控（Esc 退出）</div>
+      <button class="btn" id="relock-btn" style="margin-top:10px;padding:8px 30px">重新锁定鼠标</button>
+    </div>
+
+    <div id="debug-panel" class="hide" style="position:fixed;left:16px;bottom:16px;z-index:20;background:rgba(0,0,0,0.75);color:#8fd;font-family:monospace;font-size:12px;padding:10px 12px;border-radius:8px;line-height:1.7;pointer-events:auto">
+      <b style="color:#f1c40f">DEBUG（F3 隐藏）</b><br>
+      <span id="dbg-fps" style="white-space:pre">--</span><br>
+      <button id="dbg-level" style="margin-top:6px;padding:3px 10px;cursor:pointer;background:#3a7afe;color:#fff;border:none;border-radius:4px">跳到 3 级</button>
+      <button id="dbg-collision" style="margin-top:6px;margin-left:6px;padding:3px 10px;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:4px">碰撞线框</button>
+      <button id="dbg-ghost" style="margin-top:6px;margin-left:6px;padding:3px 10px;cursor:pointer;background:#2c3e50;color:#fff;border:none;border-radius:4px">穿墙</button>
+      <button id="dbg-invuln" style="margin-top:6px;padding:3px 10px;cursor:pointer;background:#f39c12;color:#fff;border:none;border-radius:4px">无敌</button>
+      <div style="margin-top:6px">伤害倍率 <span id="dbg-dmg-val">×1</span>
+        <input id="dbg-dmg" type="range" min="0.1" max="10" step="0.1" value="1" style="width:110px;vertical-align:middle">
+      </div>
+    </div>
+
+    <div id="levelup">
+      <div id="levelup-inner">
+        <h2>升级！选择一项强化</h2>
+        <div id="levelup-choices"></div>
+      </div>
+    </div>
+
+  </body>
+</html>

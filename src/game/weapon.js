@@ -15,13 +15,6 @@ export class WeaponSystem {
     this.mouseHeld = false
     this.adsHeld = false
 
-    // 后坐力状态
-    this.punch = 0
-    this.camTiltX = 0   // 相机上下旋转（后坐力上跳）
-    this.camYaw = 0     // 相机左右旋转
-    this.shake = 0      // 屏幕抖动强度
-    this.shakeDecay = 0
-
     this.flash = new THREE.PointLight(0xffcc66, 0, 6)
     this.flash.position.set(0, 0, -0.4)
     player.gunGroup.add(this.flash)
@@ -70,7 +63,6 @@ export class WeaponSystem {
       pellets: d.pellets || 1, spread: d.spread || 0,
       auto: !!d.auto, adsFov: d.adsFov || 0,
       reloading: false, reloadTimer: 0, fireTimer: 0,
-      recoil: d.recoil || { kick: 0.1, camY: 0.01, camYaw: 0.005, shakeAmp: 0.003, shakeFreq: 15 },
     }
   }
 
@@ -113,20 +105,7 @@ export class WeaponSystem {
     }
     g.ammo--
     g.fireTimer = g.fireInterval
-
-    // 枪身后坐：瞬间向后，缓速回弹
     this.kick = 1
-
-    // 相机后坐：上跳 + 左右微偏
-    const rc = g.recoil
-    this.punch = rc.camY          // 快速上跳
-    this.camTiltX = rc.camY * 0.6 // 相机倾斜
-    this.camYaw = (Math.random() - 0.5) * rc.camYaw * 2 // 随机左右偏
-
-    // 屏幕震感
-    this.shake = rc.shakeAmp
-    this.shakeDecay = 1 / rc.shakeFreq
-
     this.flash.intensity = 3
     this.muzzle.material.opacity = 1
 
@@ -246,38 +225,11 @@ export class WeaponSystem {
     this.updateAds(dt)
     if (g.fireTimer > 0) g.fireTimer -= dt
 
-    // 相机后坐恢复（三角洲风格：快回正）
-    this.punch = Math.max(0, this.punch - dt * 0.6)
-    this.player.cameraRecoilY = this.punch
-
-    // 相机倾斜恢复（快）
-    this.camTiltX *= Math.max(0, 1 - dt * 8)
-    this.player.cameraTiltX = this.camTiltX
-
-    // 相机偏转恢复（快）
-    this.camYaw *= Math.max(0, 1 - dt * 7)
-    this.player.cameraYawOffset = this.camYaw
-
-    // 屏幕震感衰减（更快）
-    if (this.shake > 0) {
-      this.shake *= Math.max(0, 1 - dt * this.shakeDecay * 10)
-      if (this.shake < 0.0001) this.shake = 0
-    }
-    this.player.screenShake = this.shake
-
-    const ads = this.adsHeld && g.adsFov
-    const sway = ads ? Math.sin(performance.now() * 0.0022) * 0.004 : 0
-    const targetY = (ads ? -0.18 : -0.4) + sway
-    const targetX = (ads ? 0 : 0.25) + Math.cos(performance.now() * 0.0019) * 0.003
-    this.player.gunGroup.position.x += (targetX - this.player.gunGroup.position.x) * Math.min(1, dt * 12)
-    this.player.gunGroup.position.y += (targetY - this.player.gunGroup.position.y) * Math.min(1, dt * 12)
-
-    // 枪身后坐恢复（线性，持续0.4秒）
+    // 枪身后坐（0.4秒恢复）
     const targetZ = -0.5
-    const kickAmt = g.recoil.kick || 0.1
     if (this.kick > 0) {
-      this.kick = Math.max(0, this.kick - dt * 2.5)  // 0.4s 恢复
-      this.player.gunGroup.position.z = targetZ + this.kick * kickAmt
+      this.kick = Math.max(0, this.kick - dt * 2.5)
+      this.player.gunGroup.position.z = targetZ + this.kick * 0.08
     } else {
       this.player.gunGroup.position.z += (targetZ - this.player.gunGroup.position.z) * Math.min(1, dt * 12)
     }

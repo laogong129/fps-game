@@ -135,22 +135,6 @@ export class Player {
     }
     this.camera.position.copy(this.pos)
     if (this.cameraRecoilY) this.camera.position.y += this.cameraRecoilY
-    // 相机倾斜（pitch）— 在欧拉角基础上叠加
-    if (this.cameraTiltX !== 0 || this.cameraYawOffset !== 0) {
-      const euler = new THREE.Euler(
-        this.camera.rotation.x + this.cameraTiltX,
-        this.camera.rotation.y + this.cameraYawOffset,
-        0,
-        'YXZ'
-      )
-      this.camera.quaternion.setFromEuler(euler)
-    }
-    // 屏幕震感：在相机位置加随机偏移（模拟打击感）
-    if (this.screenShake > 0) {
-      const s = this.screenShake * 0.5
-      this.camera.position.x += (Math.random() - 0.5) * s
-      this.camera.position.z += (Math.random() - 0.5) * s
-    }
   }
 
   takeDamage(amount) {

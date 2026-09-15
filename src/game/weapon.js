@@ -272,12 +272,12 @@ export class WeaponSystem {
     this.player.gunGroup.position.x += (targetX - this.player.gunGroup.position.x) * Math.min(1, dt * 12)
     this.player.gunGroup.position.y += (targetY - this.player.gunGroup.position.y) * Math.min(1, dt * 12)
 
-    // 枪身后坐恢复
+    // 枪身后坐恢复（线性，持续0.4秒）
     const targetZ = -0.5
+    const kickAmt = g.recoil.kick || 0.1
     if (this.kick > 0) {
-      const rc = g.recoil
-      this.kick = Math.max(0, this.kick - dt * (1 / rc.kick * 8))
-      this.player.gunGroup.position.z = targetZ + this.kick * rc.kick
+      this.kick = Math.max(0, this.kick - dt * 2.5)  // 0.4s 恢复
+      this.player.gunGroup.position.z = targetZ + this.kick * kickAmt
     } else {
       this.player.gunGroup.position.z += (targetZ - this.player.gunGroup.position.z) * Math.min(1, dt * 12)
     }

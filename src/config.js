@@ -23,11 +23,11 @@ export const CONFIG = {
 
   weapon: {
     pistol: { label: '手枪', damage: 30, fireInterval: 1.0, magSize: 8, reloadTime: 1.2,
-      recoil: { kick: 0.06, camY: 0.002, camYaw: 0.0008, shakeAmp: 0.0003, shakeFreq: 30 } },
+      recoil: { kick: 0.08, recovery: 2.5 } },
     shotgun: { label: '霰弹枪', damage: 12, pellets: 6, spread: 0.12, fireInterval: 0.9, magSize: 4, reloadTime: 1.6,
-      recoil: { kick: 0.12, camY: 0.006, camYaw: 0.002, shakeAmp: 0.001, shakeFreq: 20 } },
+      recoil: { kick: 0.18, recovery: 2.5 } },
     rifle: { label: '步枪', damage: 24, fireInterval: 0.2, magSize: 30, reloadTime: 1.8, auto: true, adsFov: 42,
-      recoil: { kick: 0.04, camY: 0.003, camYaw: 0.001, shakeAmp: 0.0005, shakeFreq: 35 } },
+      recoil: { kick: 0.06, recovery: 3.0 } },
     assistAngle: 14,
     assistRange: 50,
   },

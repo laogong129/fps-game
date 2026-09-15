@@ -9,7 +9,8 @@
       "Bash(\"E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe\" --background --python \"e:/vibecoding/fps-game/tools/blender/make_enemy_knee_oni.py\")",
       "Bash('E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe' --background --python -c ' *)",
       "Bash(\"E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe\" --background --python \"e:/vibecoding/fps-game/tools/blender/check_mat.py\")",
-      "Bash(\"E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe\" --background --python \"e:/vibecoding/fps-game/tools/blender/check_cone.py\")"
+      "Bash(\"E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe\" --background --python \"e:/vibecoding/fps-game/tools/blender/check_cone.py\")",
+      "Bash(node --input-type=module -e ' *)"
     ]
   }
 }

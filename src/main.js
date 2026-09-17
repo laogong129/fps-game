@@ -398,6 +398,11 @@ function updateDebugPanel(dt) {
 }
 
 document.getElementById('dbg-level').addEventListener('click', jumpToLevel)
+document.getElementById('dbg-skipwave').addEventListener('click', () => {
+  if (spawner.waveTimer > 0 && spawner.toSpawn === 0) {
+    spawner.waveTimer = 0
+  }
+})
 document.getElementById('dbg-collision').addEventListener('click', () => {
   if (!collWire) buildCollisionWires()
   collWire.visible = !collWire.visible

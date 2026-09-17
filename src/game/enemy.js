@@ -110,6 +110,7 @@ export function createEnemy(type, hpMultiplier, scene) {
   hpText.position.y = def.size + 0.7
   hpText.userData.isHpText = true
   group.add(hpText)
+  group.userData.isEnemy = true
   group.userData.enemyGroup = true
   group.userData.centerHeight = def.size / 2
   const hp = def.hp * hpMultiplier

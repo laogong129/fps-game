@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PreCommand": [
+      {
+        "matcher": "git commit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🧪 代码测试工程师...'; node tools/test-engineer.mjs"
+          },
+          {
+            "type": "command",
+            "command": "echo ''; echo '🔍 质量检测工程师...'; node tools/quality-engineer.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}

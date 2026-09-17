@@ -111,6 +111,7 @@ export function createEnemy(type, hpMultiplier, scene) {
   hpText.userData.isHpText = true
   group.add(hpText)
   group.userData.isEnemy = true
+  group.userData.enemyRef = e  // Store reference to enemy object for collision check
   group.userData.enemyGroup = true
   group.userData.centerHeight = def.size / 2
   const hp = def.hp * hpMultiplier

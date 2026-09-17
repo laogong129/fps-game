@@ -107,7 +107,9 @@ export class Player {
     }
     for (const g of enemyGroups) {
       if (this.ghost) break
-      if (g.userData.isEnemy && g.dead) continue
+      // Check if enemy is dead via userData reference
+      const enemyRef = g.userData.enemyRef
+      if (enemyRef && enemyRef.dead) continue
       const r = g.userData.centerHeight + 0.3
       const dx = this.pos.x - g.position.x
       const dz = this.pos.z - g.position.z

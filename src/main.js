@@ -465,6 +465,8 @@ function loop() {
   renderer.render(scene, camera)
 }
 
-buildWorld()
-player.initControls()
+(async () => {
+  buildWorld()
+  await player.initControls()
+})()
 loop()

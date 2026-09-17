@@ -24,7 +24,9 @@ export function createArena(scene, model) {
     [-size / 2, 0, Math.PI / 2],
     [size / 2, 0, Math.PI / 2],
   ]) {
-    const wall = new THREE.Mesh(wallGeo, wallMat)
+    const wall = new THREE.Mesh(wallGeo, wallMat.clone())
+    applyToon(wall)
+    addOutline(wall, 1.03)
     wall.position.set(x, wallHeight / 2, z)
     wall.rotation.y = rz
     wall.castShadow = true

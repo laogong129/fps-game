@@ -10,7 +10,16 @@
       "Bash('E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe' --background --python -c ' *)",
       "Bash(\"E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe\" --background --python \"e:/vibecoding/fps-game/tools/blender/check_mat.py\")",
       "Bash(\"E:\\\\blender\\\\blender-5.2.1-windows-x64\\\\blender.exe\" --background --python \"e:/vibecoding/fps-game/tools/blender/check_cone.py\")",
-      "Bash(node --input-type=module -e ' *)"
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git fetch *)",
+      "Bash(git reset *)",
+      "Bash(git merge *)",
+      "Bash(ping -c 1 github.com)",
+      "Bash(ipconfig)",
+      "Bash(npm run *)",
+      "Bash(npx --version)"
     ]
   }
 }

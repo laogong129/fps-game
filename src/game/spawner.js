@@ -25,7 +25,7 @@ export class Spawner {
   }
 
   getMeshes() {
-    return this.enemies.map((e) => e.body)
+    return this.enemies.filter((e) => !e.dead).map((e) => e.body)
   }
 
   startWave() {
@@ -190,9 +190,7 @@ export class Spawner {
       else chaseEnemy(e, playerPos, dt, inner, this.enemies)
       updateEnemyBars(e, this.events.camera)
       const c = enemyCenter(e)
-      const dx = c.x - playerPos.x
-      const dz = c.z - playerPos.z
-      if (Math.hypot(dx, dz) < p.contactRadius + e.def.size / 2 && playerPos.y <= p.height + 0.5) {
+      if (!e.dead && Math.hypot(c.x - playerPos.x, c.z - playerPos.z) < p.contactRadius + e.def.size / 2 && playerPos.y <= p.height + 0.5) {
         if (this.events.onContact(e.def)) {
           if (this.events.onHurt) this.events.onHurt(p.damageFromEnemy, playerPos)
         }
@@ -236,6 +234,7 @@ export class Spawner {
     if (i < 0) i = this.enemies.findIndex((e) => e.group === obj)
     if (i < 0) return
     const e = this.enemies[i]
+    if (e.dead) return
     const pos = e.group.position.clone()
     if (damageEnemy(e, damage, this.scene)) {
       // 不立即移除，等死亡动画播完（update 中检测 deathState === 'done'）

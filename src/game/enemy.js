@@ -171,7 +171,11 @@ function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
   model.traverse((o) => {
     if (o.isMesh) {
       o.castShadow = true
-      if (o.material) o.material = o.material.clone()
+      if (o.material) {
+        o.material = o.material.clone()
+        o.material.transparent = false
+        o.material.depthWrite = true
+      }
     }
   })
   // 移除旧占位内容，保留 HP 条和文字

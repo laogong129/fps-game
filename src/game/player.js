@@ -74,6 +74,21 @@ export class Player {
   async initControls() {
     const { PointerLockControls } = await import('three/examples/jsm/controls/PointerLockControls.js')
     this.controls = new PointerLockControls(this.camera, document.body)
+
+    // 监听指针锁定事件
+    this.controls.addEventListener('lock', () => {
+      console.log('✅ Pointer Lock 成功')
+      this.lockPending = false
+    })
+    this.controls.addEventListener('unlock', () => {
+      console.log('⚠️ Pointer Lock 已释放')
+      this.lockPending = false
+    })
+
+    // 调试：检查浏览器Pointer Lock API支持
+    if (!document.pointerLockElement) {
+      console.log('📍 浏览器Pointer Lock API可用，等待用户交互...')
+    }
   }
 
   get forward() {

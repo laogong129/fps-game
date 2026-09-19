@@ -98,14 +98,6 @@ export class Player {
       this.lockFailed = true
     })
 
-    // 点击画布时尝试锁定指针
-    this.domElement.addEventListener('click', () => {
-      if (!this.controls.isLocked) {
-        console.log('🖱️ 点击画布，尝试锁定指针...')
-        this.safeLock()
-      }
-    })
-
     // 调试：检查浏览器Pointer Lock API支持
     if (!document.pointerLockElement) {
       console.log('📍 Pointer Lock API 可用，等待用户交互...')

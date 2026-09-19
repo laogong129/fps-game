@@ -28,6 +28,8 @@ export function applyToon(mesh) {
   const toon = new THREE.MeshToonMaterial({
     color: old.color ? old.color.clone() : 0xffffff,
     gradientMap: getGradientMap(),
+    transparent: false,
+    depthWrite: true,
   })
   if (old.emissive) {
     toon.emissive = old.emissive.clone()

@@ -42,6 +42,12 @@
 - **【先问清楚再做】** 任何有不确定性的事情，必须先向用户确认清楚再动手，不要擅自揣测用户意图。例如：改哪个敌人、改多少范围、具体效果是什么——不明确就问
 - 【逐步教学】用户是游戏开发小白，每完成一块就解释 2-3 个游戏开发概念（如"什么是游戏循环"），用项目里的实际代码举例
 - 每个功能点完成即 git commit（信息写清楚做了什么，中文即可）
+- **只在用户明确说"存档"或"提交"时才执行以下操作：**
+  1. 运行 tools/test-engineer.mjs（语法+构建检查）
+  2. 运行 tools/quality-engineer.mjs（规范检查）
+  3. git commit
+  4. git push origin master
+  不经过用户允许，禁止私自执行上述任何一步
 - 单文件不超过 ~300 行，按职责拆模块：`src/game/`（player, enemy, weapon, spawner, levelup, huds）+ `src/main.js` 入口
 - 游戏循环用 `requestAnimationFrame`，逻辑与渲染分离，`update(dt)` 用秒为单位
 - 数值全部集中在 `src/config.js`，方便调平衡

@@ -50,6 +50,8 @@ export function makeToon(color, emissive = 0x000000, emissiveIntensity = 1) {
     emissive,
     emissiveIntensity,
     gradientMap: getGradientMap(),
+    transparent: false,
+    depthWrite: true,
   })
 }
 

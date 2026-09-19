@@ -111,7 +111,6 @@ export function createEnemy(type, hpMultiplier, scene) {
   hpText.userData.isHpText = true
   group.add(hpText)
   group.userData.isEnemy = true
-  group.userData.enemyRef = e  // Store reference to enemy object for collision check
   group.userData.enemyGroup = true
   group.userData.centerHeight = def.size / 2
   const hp = def.hp * hpMultiplier
@@ -141,6 +140,7 @@ export function createEnemy(type, hpMultiplier, scene) {
     deathTimer: 0,
     deathState: 'none', // none → hit → falling → vanish → done
   }
+  group.userData.enemyRef = e  // Store reference to enemy object for collision check
   if (type === 'small') {
     whenModelReady((gltf) => { populateEnemyModel(e, gltf, scene, type, hpMultiplier, def) })
   } else {

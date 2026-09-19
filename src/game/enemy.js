@@ -12,14 +12,23 @@ let pendingLoads = 0
 export function loadEnemyModel(onReady) {
   if (cachedModel) { onReady(cachedModel); return }
   pendingLoads++
-  loader.load('/assets/enemy_knee_oni.glb', (gltf) => {
-    cachedModel = gltf
-    if (gltf.animations.length > 0) {
-      cachedModel.clip = gltf.animations[0]
+  loader.load(
+    '/assets/enemy_knee_oni.glb',
+    (gltf) => {
+      console.log('✅ 敌人模型加载成功')
+      cachedModel = gltf
+      if (gltf.animations.length > 0) {
+        cachedModel.clip = gltf.animations[0]
+      }
+      pendingLoads--
+      if (pendingLoads === 0) onReady(cachedModel)
+    },
+    undefined,
+    (error) => {
+      console.error('❌ 敌人模型加载失败:', error)
+      pendingLoads--
     }
-    pendingLoads--
-    if (pendingLoads === 0) onReady(cachedModel)
-  })
+  )
 }
 
 let modelReady = false
@@ -168,16 +177,27 @@ function createBoxEnemy(e, scene) {
 function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
   e._pendingModel = false
   const model = gltf.scene.clone(true)
+
+  // 调试：检查模型几何体
+  let meshCount = 0
   model.traverse((o) => {
     if (o.isMesh) {
-      o.castShadow = true
+      meshCount++
       if (o.material) {
         o.material = o.material.clone()
         o.material.transparent = false
+        o.material.opacity = 1.0
         o.material.depthWrite = true
+        o.material.alphaTest = 0.0
+        o.material.side = THREE.FrontSide
+        o.castShadow = true
+        o.receiveShadow = true
+        console.log(`网格 ${meshCount}: ${o.name}, pos=[${o.position.toArray().map(x=>x.toFixed(2)).join(',')}] scale=[${o.scale.toArray().map(x=>x.toFixed(2)).join(',')}]`)
       }
     }
   })
+  console.log(`✅ 模型加载: ${meshCount} 个网格`)
+
   // 移除旧占位内容，保留 HP 条和文字
   const toRemove = []
   for (const c of e.group.children) {
@@ -190,19 +210,28 @@ function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
   }
   e.group.add(model)
   e.body = model
+
+  // 缩放模型以适应游戏单位
+  const scale = def.size / 0.7
+  model.scale.setScalar(scale)
+  console.log(`📏 模型缩放: ${scale.toFixed(2)}x`)
+
   applySkinColor(model, type, def)
   addPupilHighlights(model)
+
   if (gltf.clip) {
     e.mixer = new THREE.AnimationMixer(model)
     e.action = e.mixer.clipAction(gltf.clip)
     e.action.loop = THREE.LoopRepeat
     e.action.play()
   }
+
   e.group.userData.centerHeight = def.size / 2
   e.hpBar.position.y = def.size + 0.3
   e.hpText.position.y = def.size + 0.7
   updateSpriteText(e.hpText, `${Math.ceil(def.hp * hpMult)}`, { color: '#ff8888', size: 40 })
   scene.add(e.group)
+  console.log('✅ 敌人已添加到场景')
 }
 
 function applySkinColor(model, type, def) {

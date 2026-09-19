@@ -43,43 +43,34 @@ export class Player {
   async initControls() {
     console.log('🔧 初始化 PointerLockControls...')
     const { PointerLockControls } = await import('three/examples/jsm/controls/PointerLockControls.js')
-    
+
     this.controls = new PointerLockControls(this.camera, this.domElement)
     console.log('✅ PointerLockControls 创建成功')
-    
-    // 监听锁定成功
-    document.addEventListener('pointerlockchange', () => {
-      console.log('📍 Pointer Lock 状态变化:', document.pointerLockElement ? '已锁定' : '已释放')
-      this.lockFailed = !document.pointerLockElement
+
+    // 使用PointerLockControls内置的lock/unlock事件
+    this.controls.addEventListener('lock', () => {
+      console.log('✅ Pointer Lock 成功! isLocked =', this.controls.isLocked)
+      this.lockFailed = false
     })
-    
-    // 监听锁定错误
-    document.addEventListener('pointerlockerror', (e) => {
-      console.error('❌ Pointer Lock 错误:', e)
-      this.lockFailed = true
+    this.controls.addEventListener('unlock', () => {
+      console.log('⚠️ Pointer Lock 已释放')
+      this.lockFailed = false
     })
   }
 
   safeLock() {
+    console.log('🖱️ safeLock() 被调用, isLocked =', this.controls?.isLocked)
     if (!this.controls) {
       console.warn('⚠️ controls 未初始化')
       return
     }
     if (this.controls.isLocked) {
-      console.log('📍 指针已锁定')
+      console.log('📍 指针已锁定，跳过')
       return
     }
-    
-    console.log('🖱️ 尝试锁定指针...')
-    this.lockFailed = false
-    
-    try {
-      this.domElement.requestPointerLock()
-      console.log('✅ requestPointerLock() 调用成功')
-    } catch (e) {
-      console.error('❌ requestPointerLock() 失败:', e)
-      this.lockFailed = true
-    }
+
+    // 使用PointerLockControls的lock()方法（内部会调用requestPointerLock）
+    this.controls.lock()
   }
 
   get forward() {

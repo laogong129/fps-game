@@ -6,6 +6,7 @@ export class Player {
   constructor(camera, domElement, scene) {
     const p = CONFIG.player
     this.camera = camera
+    this.domElement = domElement  // Store reference for later use
     this.scene = scene
     this.controls = null
     this.pos = new THREE.Vector3(0, p.height, 0)
@@ -72,22 +73,44 @@ export class Player {
   }
 
   async initControls() {
+    console.log('🔧 开始初始化 PointerLockControls...')
     const { PointerLockControls } = await import('three/examples/jsm/controls/PointerLockControls.js')
-    this.controls = new PointerLockControls(this.camera, document.body)
+
+    // 使用游戏画布作为锁定元素，而不是 document.body
+    this.controls = new PointerLockControls(this.camera, this.domElement)
+    console.log('✅ PointerLockControls 创建成功')
+    console.log('📍 domElement:', this.controls.domElement)
+    console.log('📍 camera:', this.controls.getObject()?.name || 'unnamed')
 
     // 监听指针锁定事件
     this.controls.addEventListener('lock', () => {
-      console.log('✅ Pointer Lock 成功')
+      console.log('✅ Pointer Lock 成功!')
       this.lockPending = false
+      this.lockFailed = false
     })
     this.controls.addEventListener('unlock', () => {
       console.log('⚠️ Pointer Lock 已释放')
       this.lockPending = false
     })
+    this.controls.addEventListener('error', (e) => {
+      console.error('❌ Pointer Lock 错误:', e)
+      this.lockPending = false
+      this.lockFailed = true
+    })
+
+    // 点击画布时尝试锁定指针
+    this.domElement.addEventListener('click', () => {
+      if (!this.controls.isLocked) {
+        console.log('🖱️ 点击画布，尝试锁定指针...')
+        this.safeLock()
+      }
+    })
 
     // 调试：检查浏览器Pointer Lock API支持
     if (!document.pointerLockElement) {
-      console.log('📍 浏览器Pointer Lock API可用，等待用户交互...')
+      console.log('📍 Pointer Lock API 可用，等待用户交互...')
+    } else {
+      console.log('📍 Pointer 已被锁定:', document.pointerLockElement)
     }
   }
 

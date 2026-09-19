@@ -6,7 +6,7 @@ export class Player {
   constructor(camera, domElement, scene) {
     const p = CONFIG.player
     this.camera = camera
-    this.domElement = domElement  // Store reference for later use
+    this.domElement = domElement
     this.scene = scene
     this.controls = null
     this.pos = new THREE.Vector3(0, p.height, 0)
@@ -18,12 +18,7 @@ export class Player {
     this.invulnTimer = 0
     this.yVel = 0
     this.jumpQueued = false
-
-    // 后坐力/震感附加状态
-    this.cameraRecoilY = 0
-    this.cameraTiltX = 0    // 相机pitch偏移（后坐力上跳）
-    this.cameraYawOffset = 0 // 相机yaw偏移（后坐力左右偏）
-    this.screenShake = 0
+    this.lockFailed = false
 
     this.gunGroup = new THREE.Group()
     this.gunGroup.position.set(0.25, -0.4, -0.5)
@@ -43,66 +38,47 @@ export class Player {
       if (e.code === 'Space') this.jumpQueued = true
     })
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false })
-    domElement.addEventListener('click', () => this.safeLock())
-  }
-
-  safeLock() {
-    if (!this.controls || this.controls.isLocked) return
-    this.lockPending = true
-    const attempt = (n) => {
-      if (!this.controls || this.controls.isLocked) {
-        this.lockPending = false
-        return
-      }
-      if (n >= 4) {
-        this.lockPending = false
-        this.lockFailed = true
-        return
-      }
-      try { this.controls.lock() } catch { this.lockFailed = true }
-      setTimeout(() => {
-        if (!this.controls || this.controls.isLocked) {
-          this.lockPending = false
-          return
-        }
-        attempt(n + 1)
-      }, 1400)
-    }
-    this.lockFailed = false
-    attempt(0)
   }
 
   async initControls() {
-    console.log('🔧 开始初始化 PointerLockControls...')
+    console.log('🔧 初始化 PointerLockControls...')
     const { PointerLockControls } = await import('three/examples/jsm/controls/PointerLockControls.js')
-
-    // 使用游戏画布作为锁定元素，而不是 document.body
+    
     this.controls = new PointerLockControls(this.camera, this.domElement)
     console.log('✅ PointerLockControls 创建成功')
-    console.log('📍 domElement:', this.controls.domElement)
-    console.log('📍 camera:', this.controls.getObject()?.name || 'unnamed')
-
-    // 监听指针锁定事件
-    this.controls.addEventListener('lock', () => {
-      console.log('✅ Pointer Lock 成功!')
-      this.lockPending = false
-      this.lockFailed = false
+    
+    // 监听锁定成功
+    document.addEventListener('pointerlockchange', () => {
+      console.log('📍 Pointer Lock 状态变化:', document.pointerLockElement ? '已锁定' : '已释放')
+      this.lockFailed = !document.pointerLockElement
     })
-    this.controls.addEventListener('unlock', () => {
-      console.log('⚠️ Pointer Lock 已释放')
-      this.lockPending = false
-    })
-    this.controls.addEventListener('error', (e) => {
+    
+    // 监听锁定错误
+    document.addEventListener('pointerlockerror', (e) => {
       console.error('❌ Pointer Lock 错误:', e)
-      this.lockPending = false
       this.lockFailed = true
     })
+  }
 
-    // 调试：检查浏览器Pointer Lock API支持
-    if (!document.pointerLockElement) {
-      console.log('📍 Pointer Lock API 可用，等待用户交互...')
-    } else {
-      console.log('📍 Pointer 已被锁定:', document.pointerLockElement)
+  safeLock() {
+    if (!this.controls) {
+      console.warn('⚠️ controls 未初始化')
+      return
+    }
+    if (this.controls.isLocked) {
+      console.log('📍 指针已锁定')
+      return
+    }
+    
+    console.log('🖱️ 尝试锁定指针...')
+    this.lockFailed = false
+    
+    try {
+      this.domElement.requestPointerLock()
+      console.log('✅ requestPointerLock() 调用成功')
+    } catch (e) {
+      console.error('❌ requestPointerLock() 失败:', e)
+      this.lockFailed = true
     }
   }
 
@@ -120,7 +96,19 @@ export class Player {
   }
 
   update(dt, inner, enemyGroups, paused, obstacles) {
-    if (paused || !this.controls?.isLocked) return
+    // 关键：只有指针锁定时才能移动
+    if (paused || !this.controls?.isLocked) {
+      // 调试：输出当前状态
+      if (Date.now() % 60 < 1) { // 每60帧输出一次，避免日志过多
+        console.log('📍 游戏状态:', {
+          isLocked: this.controls?.isLocked,
+          pointerLockElement: document.pointerLockElement ? '已锁定' : '未锁定',
+          state: paused ? 'paused' : 'playing'
+        })
+      }
+      return
+    }
+    
     if (this.invulnTimer > 0) this.invulnTimer -= dt
 
     const p = CONFIG.player
@@ -137,7 +125,6 @@ export class Player {
     }
     for (const g of enemyGroups) {
       if (this.ghost) break
-      // Check if enemy is dead via userData reference
       const enemyRef = g.userData.enemyRef
       if (enemyRef && enemyRef.dead) continue
       const r = g.userData.centerHeight + 0.3

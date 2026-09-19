@@ -470,8 +470,9 @@ function loop() {
   renderer.render(scene, camera)
 }
 
+// 页面加载时只初始化世界，不自动锁定鼠标
 (async () => {
   buildWorld()
-  await player.initControls()
+  // initControls 将在用户点击"开始游戏"时调用
 })()
 loop()

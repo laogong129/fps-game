@@ -139,7 +139,8 @@ async function startGame() {
   state = 'playing'
   document.getElementById('start-screen').classList.remove('show')
   hud.hideGameOver()
-  player.safeLock()
+  // 等待一小段时间确保指针锁定可以成功
+  setTimeout(() => player.safeLock(), 100)
 }
 
 function onGameOver() {

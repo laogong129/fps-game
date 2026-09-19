@@ -29,7 +29,10 @@ export function applyToon(mesh) {
     color: old.color ? old.color.clone() : 0xffffff,
     gradientMap: getGradientMap(),
     transparent: false,
+    opacity: 1.0,
     depthWrite: true,
+    alphaTest: 0.0,
+    side: THREE.FrontSide,
   })
   if (old.emissive) {
     toon.emissive = old.emissive.clone()

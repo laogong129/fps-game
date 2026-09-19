@@ -471,9 +471,9 @@ function loop() {
   renderer.render(scene, camera)
 }
 
-// 页面加载时只初始化世界，不自动锁定鼠标
+// 页面加载时初始化世界和控制器
 (async () => {
   buildWorld()
-  // initControls 将在用户点击"开始游戏"时调用
+  await player.initControls()  // 关键修复：立即初始化PointerLockControls
 })()
 loop()

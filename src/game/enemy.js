@@ -13,7 +13,7 @@ export function loadEnemyModel(onReady) {
   if (cachedModel) { onReady(cachedModel); return }
   pendingLoads++
   loader.load(
-    '/assets/enemy_knee_oni.glb',
+    'assets/enemy_knee_oni.glb',
     (gltf) => {
       console.log('✅ 敌人模型加载成功')
       cachedModel = gltf

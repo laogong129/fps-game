@@ -19,6 +19,7 @@ export class Player {
     this.yVel = 0
     this.jumpQueued = false
     this.lockFailed = false
+    this.invuln = false
 
     this.gunGroup = new THREE.Group()
     this.gunGroup.position.set(0.25, -0.4, -0.5)
@@ -38,38 +39,27 @@ export class Player {
       if (e.code === 'Space') this.jumpQueued = true
     })
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false })
+    // 点击画布时请求指针锁定（浏览器要求用户手势）
+    this.domElement.addEventListener('click', () => {
+      if (!this.controls?.isLocked) this.safeLock()
+    })
   }
 
   async initControls() {
-    console.log('🔧 初始化 PointerLockControls...')
     const { PointerLockControls } = await import('three/examples/jsm/controls/PointerLockControls.js')
-
     this.controls = new PointerLockControls(this.camera, this.domElement)
-    console.log('✅ PointerLockControls 创建成功')
 
-    // 使用PointerLockControls内置的lock/unlock事件
     this.controls.addEventListener('lock', () => {
-      console.log('✅ Pointer Lock 成功! isLocked =', this.controls.isLocked)
       this.lockFailed = false
     })
     this.controls.addEventListener('unlock', () => {
-      console.log('⚠️ Pointer Lock 已释放')
-      this.lockFailed = false
+      // 不做处理，由主循环自动检测显示提示
     })
   }
 
   safeLock() {
-    console.log('🖱️ safeLock() 被调用, isLocked =', this.controls?.isLocked)
-    if (!this.controls) {
-      console.warn('⚠️ controls 未初始化')
-      return
-    }
-    if (this.controls.isLocked) {
-      console.log('📍 指针已锁定，跳过')
-      return
-    }
-
-    // 使用PointerLockControls的lock()方法（内部会调用requestPointerLock）
+    if (!this.controls) return
+    if (this.controls.isLocked) return
     this.controls.lock()
   }
 
@@ -87,19 +77,8 @@ export class Player {
   }
 
   update(dt, inner, enemyGroups, paused, obstacles) {
-    // 关键：只有指针锁定时才能移动
-    if (paused || !this.controls?.isLocked) {
-      // 调试：输出当前状态
-      if (Date.now() % 60 < 1) { // 每60帧输出一次，避免日志过多
-        console.log('📍 游戏状态:', {
-          isLocked: this.controls?.isLocked,
-          pointerLockElement: document.pointerLockElement ? '已锁定' : '未锁定',
-          state: paused ? 'paused' : 'playing'
-        })
-      }
-      return
-    }
-    
+    if (paused || !this.controls?.isLocked) return
+
     if (this.invulnTimer > 0) this.invulnTimer -= dt
 
     const p = CONFIG.player

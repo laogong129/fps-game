@@ -474,6 +474,6 @@ function loop() {
 // 页面加载时初始化世界和控制器
 (async () => {
   buildWorld()
-  await player.initControls()  // 关键修复：立即初始化PointerLockControls
+  await player.initControls()  // 初始化PointerLockControls（不调用lock，等用户点击）
 })()
 loop()

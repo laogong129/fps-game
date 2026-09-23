@@ -201,9 +201,16 @@ function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
     e.group.remove(c)
   }
 
-  // 缩放
-  const scale = def.size / 0.7
-  model.scale.setScalar(scale)
+  // 按模型自身高度缩放到 def.size。用 bind 空间几何包围盒而非 Box3.setFromObject：
+  // 蒙皮网格的顶点由骨骼矩阵决定，节点变换不参与，setFromObject 量出的高度是错的
+  const box = new THREE.Box3()
+  model.traverse((o) => {
+    if (!o.isMesh || !o.geometry) return
+    o.geometry.computeBoundingBox()
+    if (o.geometry.boundingBox) box.union(o.geometry.boundingBox)
+  })
+  const nativeHeight = box.max.y - box.min.y
+  model.scale.setScalar(nativeHeight > 0 ? def.size / nativeHeight : 1)
 
   // 添加模型到 group（group 已在 createEnemy 中添加到 scene）
   e.group.add(model)

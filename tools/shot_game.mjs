@@ -104,6 +104,10 @@ const main = async () => {
       let inScene = false, p = b0
       while (p) { if (p === scene) { inScene = true; break } p = p.parent }
       out.push('bone0InSceneGraph=' + inScene)
+      let minY = Infinity, maxY = -Infinity
+      for (const bn of sk.bones) { const y = bn.matrixWorld.elements[13]; if (y < minY) minY = y; if (y > maxY) maxY = y }
+      out.push('boneY span=' + (maxY - minY).toFixed(3) + ' min=' + minY.toFixed(3) + ' max=' + maxY.toFixed(3))
+      out.push('hpBarY=' + best.hpBar.position.y.toFixed(2) + ' defSize=' + best.def.size)
       out.push('meshMW=' + Array.from(sm.matrixWorld.elements).map(n=>+n.toFixed(2)).join(','))
       out.push('rootMW=' + Array.from(sm.parent.matrixWorld.elements).map(n=>+n.toFixed(2)).join(','))
     }

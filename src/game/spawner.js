@@ -25,7 +25,12 @@ export class Spawner {
   }
 
   getMeshes() {
-    return this.enemies.filter((e) => !e.dead).map((e) => e.body)
+    const meshes = []
+    for (const e of this.enemies) {
+      if (e.dead || !e.body) continue
+      e.body.traverse((o) => { if (o.isMesh) meshes.push(o) })
+    }
+    return meshes
   }
 
   startWave() {

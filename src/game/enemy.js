@@ -1,51 +1,13 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { CONFIG } from '../config.js'
 import { makeTextSprite, updateSpriteText } from './text.js'
 import { resolveObstacles } from './arena.js'
 import { applyAnimeStyle, makeToon, addOutline } from './style.js'
 
 const loader = new GLTFLoader()
-let cachedModel = null
-let pendingLoads = 0
-
-export function loadEnemyModel(onReady) {
-  if (cachedModel) { onReady(cachedModel); return }
-  pendingLoads++
-  loader.load(
-    'assets/enemy_knee_oni.glb',
-    (gltf) => {
-      console.log('✅ 敌人模型加载成功')
-      cachedModel = gltf
-      if (gltf.animations.length > 0) {
-        cachedModel.clip = gltf.animations[0]
-      }
-      pendingLoads--
-      if (pendingLoads === 0) onReady(cachedModel)
-    },
-    undefined,
-    (error) => {
-      console.error('❌ 敌人模型加载失败:', error)
-      pendingLoads--
-    }
-  )
-}
-
-let modelReady = false
-let readyQueue = []
-
-export function whenModelReady(cb) {
-  if (modelReady) { cb(cachedModel) }
-  else { readyQueue.push(cb) }
-}
-
-function fireReady() {
-  modelReady = true
-  for (const cb of readyQueue) cb(cachedModel)
-  readyQueue.length = 0
-}
-
-loadEnemyModel(() => { fireReady() })
+const modelCache = new Map()
 
 // ── 死亡特效粒子系统 ──
 const particlePool = []
@@ -102,6 +64,29 @@ export function updateParticles(dt) {
   }
 }
 
+// ── 模型预加载 ──
+export function preloadEnemyModels() {
+  const paths = new Set()
+  for (const type of Object.keys(CONFIG.enemy)) {
+    const def = CONFIG.enemy[type]
+    if (def.modelPath) paths.add(def.modelPath)
+  }
+  return Promise.allSettled(
+    [...paths].map(path =>
+      loader.loadAsync(path).then(gltf => {
+        modelCache.set(path, gltf)
+        console.log(`✅ 模型加载完成: ${path}`)
+      }).catch(err => {
+        console.warn(`⚠️ 模型加载失败: ${path}`, err)
+      })
+    )
+  )
+}
+
+function getModel(path) {
+  return modelCache.get(path) || null
+}
+
 // ── 敌人创建 ──
 export function createEnemy(type, hpMultiplier, scene) {
   const def = CONFIG.enemy[type]
@@ -143,15 +128,22 @@ export function createEnemy(type, hpMultiplier, scene) {
     mixer: null,
     action: null,
     animTime: 0,
-    _pendingModel: type === 'small',
-    // 死亡动画状态
+    _pendingModel: false,
     dead: false,
     deathTimer: 0,
-    deathState: 'none', // none → hit → falling → vanish → done
+    deathState: 'none',
   }
-  group.userData.enemyRef = e  // Store reference to enemy object for collision check
-  if (type === 'small') {
-    whenModelReady((gltf) => { populateEnemyModel(e, gltf, scene, type, hpMultiplier, def) })
+  group.userData.enemyRef = e
+
+  if (def.modelPath) {
+    const gltf = getModel(def.modelPath)
+    if (gltf) {
+      populateEnemyModel(e, gltf, scene, type, hpMultiplier, def)
+    } else {
+      // 模型未加载，降级为方块
+      createBoxEnemy(e, scene)
+      console.warn(`⚠️ 模型未就绪: ${def.modelPath}，使用方块`)
+    }
   } else {
     createBoxEnemy(e, scene)
   }
@@ -170,19 +162,20 @@ function createBoxEnemy(e, scene) {
   e.group.add(body)
   addEyes(e.group, def)
   e.body = body
-  e._pendingModel = false
   scene.add(e.group)
 }
 
 function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
-  e._pendingModel = false
-  const model = gltf.scene.clone(true)
+  // 含骨骼的模型必须用 SkeletonUtils.clone 重绑骨骼；
+  // 普通 clone 会让克隆体引用原模型骨骼（不在场景里），导致蒙皮错乱、模型被压扁且被视锥剔除
+  const model = skeletonClone(gltf.scene)
+  model.traverse((o) => {
+    if (o.isSkinnedMesh) o.frustumCulled = false
+  })
 
-  // 调试：检查模型几何体
-  let meshCount = 0
+  // 清理材质
   model.traverse((o) => {
     if (o.isMesh) {
-      meshCount++
       if (o.material) {
         o.material = o.material.clone()
         o.material.transparent = false
@@ -192,13 +185,12 @@ function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
         o.material.side = THREE.FrontSide
         o.castShadow = true
         o.receiveShadow = true
-        console.log(`网格 ${meshCount}: ${o.name}, pos=[${o.position.toArray().map(x=>x.toFixed(2)).join(',')}] scale=[${o.scale.toArray().map(x=>x.toFixed(2)).join(',')}]`)
       }
+      o.userData.isEnemyMesh = true
     }
   })
-  console.log(`✅ 模型加载: ${meshCount} 个网格`)
 
-  // 移除旧占位内容，保留 HP 条和文字
+  // 移除旧占位
   const toRemove = []
   for (const c of e.group.children) {
     if (c.userData.isHpBar || c.userData.isHpText) continue
@@ -208,30 +200,45 @@ function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
     if (c.userData.isOutline) { c.geometry.dispose(); c.material.dispose() }
     e.group.remove(c)
   }
+
+  // 缩放
+  const scale = def.size / 0.7
+  model.scale.setScalar(scale)
+
+  // 添加模型到 group（group 已在 createEnemy 中添加到 scene）
   e.group.add(model)
   e.body = model
 
-  // 缩放模型以适应游戏单位
-  const scale = def.size / 0.7
-  model.scale.setScalar(scale)
-  console.log(`📏 模型缩放: ${scale.toFixed(2)}x`)
+  // 收集所有可射线检测的子 mesh
+  e.bodyMeshes = []
+  model.traverse((o) => {
+    if (o.isMesh && !o.userData.isOutline) e.bodyMeshes.push(o)
+  })
 
+  // 添加胶囊体碰撞体积
+  const collGeo = new THREE.CapsuleGeometry(def.size * 0.35, def.size * 0.5, 4, 8)
+  const collMat = new THREE.MeshBasicMaterial({ visible: false })
+  e.collisionMesh = new THREE.Mesh(collGeo, collMat)
+  e.collisionMesh.position.y = def.size / 2
+  e.group.add(e.collisionMesh)
+
+  // 应用颜色
   applySkinColor(model, type, def)
   addPupilHighlights(model)
 
-  if (gltf.clip) {
+  // 动画
+  if (gltf.animations && gltf.animations.length > 0) {
     e.mixer = new THREE.AnimationMixer(model)
-    e.action = e.mixer.clipAction(gltf.clip)
+    e.action = e.mixer.clipAction(gltf.animations[0])
     e.action.loop = THREE.LoopRepeat
     e.action.play()
   }
 
+  // HP条位置
   e.group.userData.centerHeight = def.size / 2
   e.hpBar.position.y = def.size + 0.3
   e.hpText.position.y = def.size + 0.7
   updateSpriteText(e.hpText, `${Math.ceil(def.hp * hpMult)}`, { color: '#ff8888', size: 40 })
-  scene.add(e.group)
-  console.log('✅ 敌人已添加到场景')
 }
 
 function applySkinColor(model, type, def) {
@@ -248,19 +255,17 @@ function applySkinColor(model, type, def) {
   model.traverse((o) => {
     if (!o.isMesh || !o.material) return
     const name = o.name.toLowerCase()
+    // 皮肤类材质
     if (name.includes('skin') || name.includes('torso') || name.includes('belt') ||
         name.includes('ear') || name.includes('thigh') || name.includes('shin') ||
         name.includes('foot') || name.includes('uarm') || name.includes('farm') ||
-        name.includes('hand')) {
+        name.includes('hand') || name.includes('surface') || name.includes('joints')) {
       o.material.color.setHex(skinColor)
     }
     if (name.includes('horn')) {
       o.material.color.setHex(0x8b1a1a)
     }
   })
-  const scale = def.size / 0.7
-  model.scale.setScalar(scale)
-  applyAnimeStyle(model)
 }
 
 function addPupilHighlights(model) {
@@ -268,9 +273,8 @@ function addPupilHighlights(model) {
   model.traverse((o) => {
     if (!o.isMesh) return
     const name = o.name.toLowerCase()
-    if (name === 'eye_l' || name === 'eye_r') {
+    if (name === 'eye_l' || name === 'eye_r' || name.includes('eye')) {
       o.material = eyeMat
-      o.position.z = 0.72
     }
   })
 }
@@ -296,77 +300,6 @@ function addEyes(group, def) {
     h2.position.set(def.size * 0.4, def.size + 0.1, 0)
     h2.rotation.z = -0.5
     group.add(h1, h2)
-  }
-}
-
-// ── 死亡动画：前倾倒地 + 粒子血爆 ──
-export function startEnemyDeath(e, scene) {
-  if (e.dead) return
-  e.dead = true
-  e.deathState = 'hit'
-  e.deathTimer = 0
-
-  // 阶段1：闪红受击（0.15s）
-  if (e.body) {
-    e.body.traverse((o) => {
-      if (o.isMesh && o.material && !o.userData.isOutline && o.material.emissive) {
-        o.material.emissive.setHex(0xff0000)
-      }
-    })
-  }
-
-  // 粒子爆发（红色/本敌颜色）
-  const pos = e.group.position.clone()
-  pos.y += e.def.size * 0.4
-  spawnDeathParticles(pos, e.def.color, 18)
-}
-
-export function updateEnemyDeath(e, dt) {
-  if (!e.dead) return
-  e.deathTimer += dt
-
-  if (e.deathState === 'hit') {
-    if (e.deathTimer >= 0.15) {
-      e.deathState = 'falling'
-      e.deathTimer = 0
-      // 恢复 emissive
-      if (e.body) {
-        e.body.traverse((o) => {
-          if (o.isMesh && o.material && !o.userData.isOutline && o.material.emissive) {
-            o.material.emissive.setHex(0x000000)
-          }
-        })
-      }
-    }
-  } else if (e.deathState === 'falling') {
-    // 向前倒下：绕 X 轴旋转 90°
-    const progress = Math.min(1, e.deathTimer / 0.4)
-    const eased = 1 - Math.pow(1 - progress, 3)
-    e.group.rotation.x = eased * (Math.PI / 2)
-    e.group.position.y = Math.max(0, -eased * 0.05)
-    if (progress >= 1) {
-      e.deathState = 'vanish'
-      e.deathTimer = 0
-    }
-  } else if (e.deathState === 'vanish') {
-    const progress = Math.min(1, e.deathTimer / 0.3)
-    if (e.body) {
-      e.body.traverse((o) => {
-        if (o.isMesh && o.material) {
-          if (o.material.transparent === undefined) {
-            o.material = o.material.clone()
-            o.material.transparent = true
-          }
-          o.material.opacity = 1 - progress
-        }
-      })
-    }
-    if (e.hpBar && e.hpBar.material) {
-      e.hpBar.material.opacity = 1 - progress
-    }
-    if (progress >= 1) {
-      e.deathState = 'done'
-    }
   }
 }
 
@@ -564,8 +497,73 @@ export function damageEnemy(enemy, amount, scene) {
   return false
 }
 
+export function startEnemyDeath(e, scene) {
+  if (e.dead) return
+  e.dead = true
+  e.deathState = 'hit'
+  e.deathTimer = 0
+
+  if (e.body) {
+    e.body.traverse((o) => {
+      if (o.isMesh && o.material && !o.userData.isOutline && o.material.emissive) {
+        o.material.emissive.setHex(0xff0000)
+      }
+    })
+  }
+
+  const pos = e.group.position.clone()
+  pos.y += e.def.size * 0.4
+  spawnDeathParticles(pos, e.def.color, 18)
+}
+
+export function updateEnemyDeath(e, dt) {
+  if (!e.dead) return
+  e.deathTimer += dt
+
+  if (e.deathState === 'hit') {
+    if (e.deathTimer >= 0.15) {
+      e.deathState = 'falling'
+      e.deathTimer = 0
+      if (e.body) {
+        e.body.traverse((o) => {
+          if (o.isMesh && o.material && !o.userData.isOutline && o.material.emissive) {
+            o.material.emissive.setHex(0x000000)
+          }
+        })
+      }
+    }
+  } else if (e.deathState === 'falling') {
+    const progress = Math.min(1, e.deathTimer / 0.4)
+    const eased = 1 - Math.pow(1 - progress, 3)
+    e.group.rotation.x = eased * (Math.PI / 2)
+    e.group.position.y = Math.max(0, -eased * 0.05)
+    if (progress >= 1) {
+      e.deathState = 'vanish'
+      e.deathTimer = 0
+    }
+  } else if (e.deathState === 'vanish') {
+    const progress = Math.min(1, e.deathTimer / 0.3)
+    if (e.body) {
+      e.body.traverse((o) => {
+        if (o.isMesh && o.material) {
+          if (o.material.transparent === undefined) {
+            o.material = o.material.clone()
+            o.material.transparent = true
+          }
+          o.material.opacity = 1 - progress
+        }
+      })
+    }
+    if (e.hpBar && e.hpBar.material) {
+      e.hpBar.material.opacity = 1 - progress
+    }
+    if (progress >= 1) {
+      e.deathState = 'done'
+    }
+  }
+}
+
 export function updateEnemyAnim(e, dt) {
-  if (e._pendingModel) return
   if (e.mixer) e.mixer.update(dt)
   updateEnemyDeath(e, dt)
 }

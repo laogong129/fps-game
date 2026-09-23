@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config.js'
 import { resolveObstacles } from './arena.js'
+import { playLand } from './sound.js'
 
 export class Player {
   constructor(camera, domElement, scene) {
@@ -117,7 +118,9 @@ export class Player {
       if (this.pos.y <= p.height) {
         this.pos.y = p.height
         this.yVel = 0
+        if (this._wasAirborne) playLand()
       }
+      this._wasAirborne = this.pos.y > p.height
     }
     if (!this.ghost) {
       this.pos.x = THREE.MathUtils.clamp(this.pos.x, -inner + p.radius, inner - p.radius)

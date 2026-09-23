@@ -74,6 +74,7 @@ export const CONFIG = {
       speed: 2.6,
       hp: 30,
       xp: 1,
+      modelPath: 'assets/models/enemy_mutant.glb',
     },
     tank: {
       label: '血牛',

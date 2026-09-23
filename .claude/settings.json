@@ -19,7 +19,12 @@
       "Bash(ping -c 1 github.com)",
       "Bash(ipconfig)",
       "Bash(npm run *)",
-      "Bash(npx --version)"
+      "Bash(npx --version)",
+      "Bash(grep -v \"//\\\\|\\\\.comment\")",
+      "Bash(grep -v \"//\")",
+      "Bash(node --check src/config.js)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(node -e ' *)"
     ]
   }
 }

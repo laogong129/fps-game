@@ -11,6 +11,7 @@ import { FloatingText } from './game/text.js'
 import { playShot, playHit, playReload, playLevelUp } from './game/sound.js'
 import { applyAnimeStyle } from './game/style.js'
 import { setEnemyScene } from './game/enemy.js'
+import { preloadEnemyModels } from './game/enemy.js'
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
@@ -475,5 +476,7 @@ function loop() {
 (async () => {
   buildWorld()
   await player.initControls()  // 初始化PointerLockControls（不调用lock，等用户点击）
+  setEnemyScene(scene)         // 设置敌人场景引用
+  preloadEnemyModels()         // 预加载所有敌人模型
 })()
 loop()

@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { CONFIG, waveSpawnCount } from '../config.js'
 import {
-  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy, updateEnemyAnim, updateParticles, setEnemyScene, hitZoneMultiplier,
+  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy, updateEnemyAnim, updateParticles, setEnemyScene, hitZoneMultiplier, hitZoneAt,
 } from './enemy.js'
 
 export class Spawner {
@@ -18,6 +18,9 @@ export class Spawner {
     this.spawnTimer = 0
     this.spawnInterval = 1.2
     this.crateWave = 0
+    this.pending = []
+    this.markers = new THREE.Group()
+    scene.add(this.markers)
   }
 
   getGroups() {
@@ -139,9 +142,64 @@ export class Spawner {
     const type = this.pickType()
     const angle = Math.random() * Math.PI * 2
     const dist = CONFIG.enemy.spawnDistance[0] + Math.random() * (CONFIG.enemy.spawnDistance[1] - CONFIG.enemy.spawnDistance[0])
-    const e = createEnemy(type, 1, this.scene)
-    e.group.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist)
+    const pos = new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist)
+    this.createSpawnMarker(type, pos)
+  }
+
+  createSpawnMarker(type, pos) {
+    const m = CONFIG.enemy.spawnMarker
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(m.ringInner, m.ringOuter, 32),
+      new THREE.MeshBasicMaterial({ color: m.color, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide })
+    )
+    ring.rotation.x = -Math.PI / 2
+    ring.position.set(pos.x, 0.02, pos.z)
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(m.ringInner, m.ringInner, m.pillarHeight, 20, 1, true),
+      new THREE.MeshBasicMaterial({ color: m.color, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide })
+    )
+    pillar.position.set(pos.x, m.pillarHeight / 2, pos.z)
+    const g = new THREE.Group()
+    g.add(ring)
+    g.add(pillar)
+    g.userData.desc = { type, pos }
+    this.markers.add(g)
+  }
+
+  updateSpawnMarkers(dt) {
+    const warn = CONFIG.enemy.spawnWarningTime
+    const m = CONFIG.enemy.spawnMarker
+    for (const g of this.markers.children) {
+      const age = (g.userData.age || 0) + dt
+      g.userData.age = age
+      const remain = Math.max(0, warn - age)
+      const k = Math.min(1, remain / warn)
+      const pulse = 1 + Math.sin(age * 10) * 0.18
+      const ring = g.children[0]
+      const pillar = g.children[1]
+      ring.scale.set(pulse, 1, pulse)
+      ring.material.opacity = 0.3 + k * 0.55
+      pillar.scale.set(pulse, 1 + (1 - k) * 0.3, pulse)
+      pillar.material.opacity = 0.08 + k * 0.16
+      if (age >= warn) {
+        this.materializeSpawn(g.userData.desc)
+        this.markers.remove(g)
+        this.disposeMarker(g)
+      }
+    }
+  }
+
+  materializeSpawn(desc) {
+    const e = createEnemy(desc.type, 1, this.scene)
+    e.group.position.copy(desc.pos)
     this.enemies.push(e)
+  }
+
+  disposeMarker(g) {
+    for (const o of g.children) {
+      if (o.geometry) o.geometry.dispose()
+      if (o.material) o.material.dispose()
+    }
   }
 
   spawnMinibugs(pos) {
@@ -171,13 +229,18 @@ export class Spawner {
   update(dt, playerPos, inner) {
     this.waveTimer -= dt
     if (this.waveTimer <= 0 && this.toSpawn === 0) this.startWave()
+    const maxMarkers = CONFIG.enemy.maxSpawnMarkers ?? 6
     if (this.toSpawn > 0) {
       this.spawnTimer -= dt
-      if (this.spawnTimer <= 0 && this.enemies.length < CONFIG.enemy.maxAlive) {
+      if (this.spawnTimer <= 0 && this.enemies.length < CONFIG.enemy.maxAlive && this.markers.children.length < maxMarkers) {
         this.spawnTimer = this.spawnInterval
         this.spawnOne()
+      } else if (this.markers.children.length >= maxMarkers) {
+        // 场上预告已满，等消化后立刻补位，保持节奏但不堆积
+        this.spawnTimer = 0.1
       }
     }
+    this.updateSpawnMarkers(dt)
     this.updateCrate(dt, playerPos)
     const p = CONFIG.player
     const api = {
@@ -206,7 +269,10 @@ export class Spawner {
     // 清理已死亡的敌人
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       if (this.enemies[i].dead && this.enemies[i].deathState === 'done') {
-        this.scene.remove(this.enemies[i].group)
+        const dead = this.enemies[i]
+        const ring = dead.group.userData.dbgRing
+        if (ring) { this.scene.remove(ring); delete dead.group.userData.dbgRing }
+        this.scene.remove(dead.group)
         this.enemies.splice(i, 1)
       }
     }
@@ -241,18 +307,26 @@ export class Spawner {
     const e = this.enemies[i]
     if (e.dead) return
     const pos = e.group.position.clone()
+    const zone = hitZoneAt(e, hit)
     const dmg = Math.max(1, Math.round(damage * hitZoneMultiplier(e, hit)))
+    if (zone === 'head' && this.events.onHeadshot) this.events.onHeadshot(pos, dmg)
     if (damageEnemy(e, dmg, this.scene)) {
       // 不立即移除，等死亡动画播完（update 中检测 deathState === 'done'）
       if (e.def.behavior === 'splitter') this.spawnMinibugs(pos)
       this.events.onEnemyKilled(e, e.type)
     }
-    if (this.events.onDamage) this.events.onDamage(dmg, pos)
+    if (this.events.onDamage) this.events.onDamage(dmg, pos, zone)
   }
 
   clear() {
-    for (const e of this.enemies) this.scene.remove(e.group)
+    for (const e of this.enemies) {
+      const ring = e.group.userData.dbgRing
+      if (ring) { this.scene.remove(ring); delete e.group.userData.dbgRing }
+      this.scene.remove(e.group)
+    }
     for (const pr of this.projectiles) this.scene.remove(pr.mesh)
+    for (const g of this.markers.children) this.disposeMarker(g)
+    this.markers.clear()
     this.enemies.length = 0
     this.projectiles.length = 0
     this.removeCrate()

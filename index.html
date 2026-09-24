@@ -6,6 +6,11 @@
     <title>FPS 幸存者围城</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
+      @font-face {
+        font-family: 'PixelDamage';
+        src: url('fonts/press-start-2p.woff2') format('woff2');
+        font-weight: normal;
+      }
       body { overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
       #game-canvas { display: block; }
       .overlay {
@@ -29,6 +34,22 @@
         position: fixed; inset: 0; pointer-events: none; z-index: 6;
         background: radial-gradient(ellipse at center, transparent 55%, rgba(200,0,0,0.55) 100%);
         opacity: 0; transition: opacity 0.25s;
+      }
+      #headshot-flash {
+        position: fixed; left: 50%; bottom: 12.5%; transform: translateX(-50%);
+        width: 240px; height: 240px; pointer-events: none; z-index: 6;
+        background: url('/fps-game/assets/headshot-skull.png') center/contain no-repeat;
+        opacity: 0;
+        animation: none;
+      }
+      #headshot-flash.show {
+        animation: headshot-pop 0.8s steps(5, end) both;
+      }
+      @keyframes headshot-pop {
+        0% { opacity: 0; transform: translateX(-50%) scale(0.4); filter: blur(3px); }
+        25% { opacity: 1; transform: translateX(-50%) scale(1.15); filter: blur(0); }
+        60% { opacity: 0.95; transform: translateX(-50%) scale(1.0); }
+        100% { opacity: 0; transform: translateX(-50%) scale(0.85); }
       }
       #lock-hint {
         position: fixed; left: 50%; top: 20%; transform: translateX(-50%);
@@ -101,6 +122,7 @@
       <div id="crosshair">+</div>
     </div>
     <div id="dmg-flash"></div>
+    <div id="headshot-flash"></div>
     <div id="lock-hint">
       <div id="lock-hint-text">画面未锁定：点击按钮重新操控（Esc 退出）</div>
       <button class="btn" id="relock-btn" style="margin-top:10px;padding:8px 30px">重新锁定鼠标</button>

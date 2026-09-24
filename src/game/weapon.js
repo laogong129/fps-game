@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { CONFIG } from '../config.js'
 import { makeToon } from './style.js'
 
@@ -34,6 +35,19 @@ export class WeaponSystem {
       scene.add(m)
       this.sparks.push({ mesh: m, vel: new THREE.Vector3(), life: 0 })
     }
+
+    // 预加载三把枪的 GLB 模型
+    this.models = {}
+    this.muzzleOffset = 0.15
+    for (const key of this.keys) {
+      const cfg = CONFIG.gunModel[key]
+      if (!cfg) continue
+      new GLTFLoader().load(cfg.file, (gltf) => {
+        this.models[key] = gltf.scene
+        if (this.active === key) this.updateModel()
+      }, undefined, (err) => console.warn('加载枪模失败', key, err))
+    }
+
     this.updateModel()
 
     window.addEventListener('mousedown', (e) => {
@@ -86,12 +100,31 @@ export class WeaponSystem {
 
   updateModel() {
     const old = this.player.gunModel
-    if (old) { this.player.gunGroup.remove(old); old.traverse((o) => o.isMesh && o.geometry.dispose()) }
+    if (old) {
+      this.player.gunGroup.remove(old)
+      // 方块兜底几何可释放；GLB 克隆与源模型共享几何，不能 dispose
+      if (!old.userData.__glb) old.traverse((o) => o.isMesh && o.geometry.dispose())
+    }
+    const cfg = CONFIG.gunModel[this.active]
+    const src = this.models[this.active]
     const group = new THREE.Group()
-    for (const part of CONFIG.gunShape[this.active]) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(...part.size), makeToon(part.color))
-      m.position.set(...part.pos)
-      group.add(m)
+    // 真实 GLB 枪模（含缩放/旋转/位置）
+    if (src && cfg) {
+      const clone = src.clone(true)
+      const [rx, ry, rz] = cfg.rot
+      clone.scale.setScalar(cfg.scale)
+      clone.rotation.set((rx * Math.PI) / 180, (ry * Math.PI) / 180, (rz * Math.PI) / 180)
+      clone.position.set(...cfg.pos)
+      clone.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false } })
+      group.add(clone)
+      group.userData.__glb = true
+    } else if (CONFIG.gunShape[this.active]) {
+      // 模型未加载完成前的方块兜底
+      for (const part of CONFIG.gunShape[this.active]) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(...part.size), makeToon(part.color))
+        m.position.set(...part.pos)
+        group.add(m)
+      }
     }
     this.player.gunGroup.add(group)
     this.player.gunModel = group

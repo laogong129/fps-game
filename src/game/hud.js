@@ -14,6 +14,7 @@ export class Hud {
       xpNum: document.getElementById('xp-num'),
       level: document.getElementById('hud-level'),
       dmgFlash: document.getElementById('dmg-flash'),
+      headshotFlash: document.getElementById('headshot-flash'),
     }
     this.dmgFlashTimer = 0
   }
@@ -38,6 +39,14 @@ export class Hud {
 
   flashDamage() {
     this.dmgFlashTimer = 0.55
+  }
+
+  flashHeadshot() {
+    const el = this.el.headshotFlash
+    el.classList.remove('show')
+    // 强制重启动画
+    void el.offsetWidth
+    el.classList.add('show')
   }
 
   showLevelUp(choices, onPick) {

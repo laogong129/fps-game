@@ -56,6 +56,14 @@ export const CONFIG = {
     ],
   },
 
+  // 真实枪械 GLB 模型（替换上方的方块造型）
+  // file: 资源路径; scale/rot/pos: 相对持枪挂点 gunGroup 的变换
+  gunModel: {
+    pistol: { file: 'assets/models/weapons/pistol.glb', scale: 0.46, rot: [0, 0, 0], pos: [0, 0, 0] },
+    shotgun: { file: 'assets/models/weapons/shotgun.glb', scale: 0.4, rot: [0, 0, 0], pos: [0, 0, 0] },
+    rifle: { file: 'assets/models/weapons/rifle.glb', scale: 0.5, rot: [0, 0, 0], pos: [0, 0, 0] },
+  },
+
   projectile: {
     radius: 0.25,
     gravity: 9,
@@ -140,6 +148,9 @@ export const CONFIG = {
     maxAlive: 40,
     spawnDistance: [24, 28],
     separation: 0.9,
+    spawnWarningTime: 1.5,
+    spawnMarker: { color: 0xff3344, ringInner: 0.55, ringOuter: 1.1, pillarHeight: 6 },
+    maxSpawnMarkers: 6,
   },
 
   wave: {

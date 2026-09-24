@@ -57,7 +57,11 @@ function buildWorld() {
       if (dead.type === 'tank') levelup.spawnHeal('tank', pos)
       else if (Math.random() < CONFIG.heal.small.chance) levelup.spawnHeal('small', pos)
     },
-    onDamage: (dmg, pos) => floats.spawn(`-${dmg}`, pos, '#ffd24a'),
+    onDamage: (dmg, pos) => floats.spawn(`-${dmg}`, pos, '#ff3b30'),
+    onHeadshot: (pos, dmg) => {
+      hud.flashHeadshot()
+      floats.spawn(`-${dmg}`, pos, '#ff2020', 72)
+    },
     onHurt: (dmg, pos) => floats.spawn(`-${dmg}`, pos, '#ff4444'),
     onProjectileHit: (pr) => {
       if (!player.takeDamage(pr.damage)) return false

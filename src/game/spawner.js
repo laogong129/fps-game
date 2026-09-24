@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { CONFIG, waveSpawnCount } from '../config.js'
 import {
-  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy, updateEnemyAnim, updateParticles, setEnemyScene,
+  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy, updateEnemyAnim, updateParticles, setEnemyScene, hitZoneMultiplier,
 } from './enemy.js'
 
 export class Spawner {
@@ -233,7 +233,7 @@ export class Spawner {
     this.projectiles.splice(i, 1)
   }
 
-  onShotHit(obj, damage) {
+  onShotHit(obj, damage, hit) {
     if (!obj) return
     let i = this.enemies.findIndex((e) => e.body === obj)
     if (i < 0) i = this.enemies.findIndex((e) => e.group === obj)
@@ -241,12 +241,13 @@ export class Spawner {
     const e = this.enemies[i]
     if (e.dead) return
     const pos = e.group.position.clone()
-    if (damageEnemy(e, damage, this.scene)) {
+    const dmg = Math.max(1, Math.round(damage * hitZoneMultiplier(e, hit)))
+    if (damageEnemy(e, dmg, this.scene)) {
       // 不立即移除，等死亡动画播完（update 中检测 deathState === 'done'）
       if (e.def.behavior === 'splitter') this.spawnMinibugs(pos)
       this.events.onEnemyKilled(e, e.type)
     }
-    if (this.events.onDamage) this.events.onDamage(damage, pos)
+    if (this.events.onDamage) this.events.onDamage(dmg, pos)
   }
 
   clear() {

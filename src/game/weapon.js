@@ -109,7 +109,9 @@ export class WeaponSystem {
     this.flash.intensity = 3
     this.muzzle.material.opacity = 1
 
-    const from = this.player.gunGroup.getWorldPosition(new THREE.Vector3())
+    // 判定射线从相机出发（严格过准星），视觉曳光从枪口出发（观感自然）
+    const rayFrom = this.player.camera.getWorldPosition(new THREE.Vector3())
+    const tracerFrom = this.player.gunGroup.getWorldPosition(new THREE.Vector3())
     const baseDir = this.player.camera.getWorldDirection(new THREE.Vector3())
     const dir0 = baseDir.clone()
     const targets = this.callbacks.getEnemies()
@@ -117,23 +119,16 @@ export class WeaponSystem {
 
     for (let i = 0; i < g.pellets; i++) {
       const dir = g.pellets === 1 ? dir0 : this.jitter(dir0, g.spread)
-      const hit = this.rayHit(from, dir, targets)
+      const hit = this.rayHit(rayFrom, dir, targets)
       if (hit) {
         anyHit = true
-        this.callbacks.onHit(hit.root, g.damage)
-        this.setTracer(from, hit.point)
+        this.callbacks.onHit(hit.root, g.damage, hit)
+        this.setTracer(tracerFrom, hit.point)
         this.spawnSparks(hit.point)
       }
     }
     if (!anyHit) {
-      const assist = this.aimAssist(from, baseDir, targets)
-      if (assist) {
-        this.callbacks.onHit(assist.root, g.damage * (g.pellets === 1 ? 1 : 0.6))
-        this.setTracer(from, assist.point)
-        this.spawnSparks(assist.point)
-      } else {
-        this.setTracer(from, from.clone().add(baseDir.clone().multiplyScalar(100)))
-      }
+      this.setTracer(tracerFrom, tracerFrom.clone().add(baseDir.clone().multiplyScalar(100)))
     }
     this.callbacks.onShot()
   }
@@ -153,32 +148,16 @@ export class WeaponSystem {
     const ray = new THREE.Raycaster(from, dir, 0, 200)
     const hitList = ray.intersectObjects(targets, true)
     if (hitList.length === 0) return null
-    const root = this.findEnemyRoot(hitList[0].object)
-    return root ? { root, point: hitList[0].point } : null
+    const h = hitList[0]
+    const root = this.findEnemyRoot(h.object)
+    // mesh + face 用来读蒙皮权重判命中部位，见 enemy.js 的 hitZoneAt
+    return root ? { root, point: h.point, mesh: h.object, face: h.face } : null
   }
 
   findEnemyRoot(obj) {
     let o = obj
     while (o) { if (o.userData.enemyGroup) return o; o = o.parent }
     return null
-  }
-
-  aimAssist(from, dir, targets) {
-    const maxAngle = THREE.MathUtils.degToRad(CONFIG.weapon.assistAngle)
-    let best = null
-    let bestAngle = maxAngle
-    for (const t of targets) {
-      const root = this.findEnemyRoot(t)
-      if (!root) continue
-      const c = root.position.clone()
-      c.y += root.userData.centerHeight || 0.5
-      const to = c.sub(from)
-      const d = to.length()
-      if (d > CONFIG.weapon.assistRange || d < 0.5) continue
-      const angle = to.normalize().angleTo(dir)
-      if (angle <= bestAngle) { bestAngle = angle; best = { root, point: from.clone().add(dir.clone().multiplyScalar(d)) } }
-    }
-    return best
   }
 
   spawnSparks(point) {

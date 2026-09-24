@@ -113,6 +113,8 @@ export function createEnemy(type, hpMultiplier, scene) {
     def,
     group,
     body: null,
+    bones: [],
+    spine: [],
     hpBar,
     hpText,
     hp,
@@ -210,7 +212,8 @@ function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
     if (o.geometry.boundingBox) box.union(o.geometry.boundingBox)
   })
   const nativeHeight = box.max.y - box.min.y
-  model.scale.setScalar(nativeHeight > 0 ? def.size / nativeHeight : 1)
+  const scale = nativeHeight > 0 ? def.size / nativeHeight : 1
+  model.scale.setScalar(scale)
 
   // 添加模型到 group（group 已在 createEnemy 中添加到 scene）
   e.group.add(model)
@@ -220,6 +223,11 @@ function populateEnemyModel(e, gltf, scene, type, hpMult, def) {
   e.bodyMeshes = []
   model.traverse((o) => {
     if (o.isMesh && !o.userData.isOutline) e.bodyMeshes.push(o)
+  })
+
+  e.bones = []
+  model.traverse((o) => {
+    if (o.isBone) e.bones.push(o)
   })
 
   // 添加胶囊体碰撞体积
@@ -478,6 +486,59 @@ export function enemyCenter(e) {
   return e.group.position.clone().add(
     new THREE.Vector3(0, e.group.userData.centerHeight, 0)
   )
+}
+
+// ── 命中部位判定 ──
+// 读命中三角面的蒙皮权重，权重最高的骨骼就是这块皮肤真正归属的部位。
+// 这是模型自带的绑定数据，不受姿态、缩放、体型影响，不需要调半径或高度窗口。
+// 骨骼名来自 Mixamo 骨架，three.js 加载后会去掉冒号（mixamorigHead）
+// 锁骨（Shoulder）算躯干：上胸和肩带都挂在这根骨头上，归四肢会让打上胸变"打手"
+const ZONE_BONES = [
+  ['head', /Head/i],
+  ['body', /Hips|Spine|Neck|Shoulder/i],
+  ['limb', /Arm|Hand|Index|Middle|Pinky|Ring|Thumb|UpLeg|Leg|Foot|Toe/i],
+]
+
+function boneZone(name) {
+  if (!name) return null
+  for (const [zone, re] of ZONE_BONES) if (re.test(name)) return zone
+  return null
+}
+
+// 命中三角面三个顶点里，蒙皮权重合计最高的骨骼
+function dominantBone(mesh, face) {
+  const si = mesh?.geometry?.attributes?.skinIndex
+  const sw = mesh?.geometry?.attributes?.skinWeight
+  const skeleton = mesh?.skeleton
+  if (!si || !sw || !skeleton || !face) return null
+  const total = new Map()
+  for (const vi of [face.a, face.b, face.c]) {
+    for (let k = 0; k < 4; k++) {
+      const w = sw.getComponent(vi, k)
+      if (w <= 0) continue
+      const name = skeleton.bones[si.getComponent(vi, k)]?.name
+      if (name) total.set(name, (total.get(name) ?? 0) + w)
+    }
+  }
+  let best = null
+  let bestW = -1
+  for (const [name, w] of total) if (w > bestW) { bestW = w; best = name }
+  return best
+}
+
+// hit 为射线命中详情 { mesh, face }，由 weapon.js 透传过来
+export function hitZoneAt(e, hit) {
+  const cfg = e.def.hitZone
+  if (!cfg) return null
+  return boneZone(dominantBone(hit?.mesh, hit?.face))
+}
+
+// 返回该次命中的伤害倍率；未配置部位伤害的敌人一律返回 1
+export function hitZoneMultiplier(e, hit) {
+  const cfg = e.def.hitZone
+  if (!cfg) return 1
+  const zone = hitZoneAt(e, hit)
+  return zone ? (cfg.mult[zone] ?? 1) : 1
 }
 
 export function damageEnemy(enemy, amount, scene) {

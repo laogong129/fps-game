@@ -80,8 +80,8 @@ function buildWorld() {
   })
   weapon = new WeaponSystem(scene, player, {
     getEnemies: () => spawner.getMeshes(),
-    onHit: (mesh, dmg) => {
-      spawner.onShotHit(mesh, Math.round(dmg * (player.dmgMult || 1)))
+    onHit: (mesh, dmg, hit) => {
+      spawner.onShotHit(mesh, Math.round(dmg * (player.dmgMult || 1)), hit)
       playHit()
     },
     onShot: () => playShot(weapon.active),

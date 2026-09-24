@@ -28,8 +28,6 @@ export const CONFIG = {
       recoil: { kick: 0.18, recovery: 2.5 } },
     rifle: { label: '步枪', damage: 24, fireInterval: 0.2, magSize: 30, reloadTime: 1.8, auto: true, adsFov: 42,
       recoil: { kick: 0.06, recovery: 3.0 } },
-    assistAngle: 14,
-    assistRange: 50,
   },
 
   view: {
@@ -69,12 +67,15 @@ export const CONFIG = {
   enemy: {
     small: {
       label: '快怪',
-      size: 0.7,
+      size: 1.7,
       color: 0xe74c3c,
       speed: 2.6,
       hp: 30,
       xp: 1,
       modelPath: 'assets/models/enemy_mutant.glb',
+      hitZone: {
+        mult: { head: 1.0, body: 0.7, limb: 0.4 },
+      },
     },
     tank: {
       label: '血牛',

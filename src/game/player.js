@@ -1,144 +1,143 @@
 import * as THREE from 'three'
+import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js'
 import { CONFIG } from '../config.js'
-import { resolveObstacles } from './arena.js'
+import { CharacterMotor } from './character-motor.js'
 import { playLand } from './sound.js'
 
 export class Player {
-  constructor(camera, domElement, scene) {
-    const p = CONFIG.player
-    this.camera = camera
-    this.domElement = domElement
-    this.scene = scene
+  constructor(camera, domElement, scene, world, spawn = new THREE.Vector3(-35, 0, -25)) {
+    Object.assign(this, { camera, domElement, scene, world, spawn })
+    this.pos = new THREE.Vector3()
+    this.motor = new CharacterMotor(world, {
+      radius: CONFIG.player.radius, height: CONFIG.player.bodyHeight,
+      eyeHeight: CONFIG.player.height, speed: CONFIG.player.moveSpeed,
+      jumpVelocity: CONFIG.player.jump.velocity, gravity: CONFIG.player.jump.gravity,
+      stepHeight: CONFIG.player.stepHeight,
+      vaultHeight: CONFIG.player.vaultHeight, mantleHeight: CONFIG.player.mantleHeight,
+    })
     this.controls = null
-    this.pos = new THREE.Vector3(0, p.height, 0)
-    this.maxHp = p.maxHp
-    this.hp = p.maxHp
-    this.moveSpeed = p.moveSpeed
-    this.speedMult = 1
     this.keys = {}
-    this.invulnTimer = 0
-    this.yVel = 0
-    this.jumpQueued = false
-    this.lockFailed = false
-    this.invuln = false
-
+    this.enabled = false
+    this.canLock = () => false
+    this.getLadders = () => []
     this.gunGroup = new THREE.Group()
     this.gunGroup.position.set(0.25, -0.4, -0.5)
-    this.camera.add(this.gunGroup)
+    camera.add(this.gunGroup)
     scene.add(camera)
-
-    const gunBody = new THREE.Mesh(
-      new THREE.BoxGeometry(0.08, 0.08, 0.4),
-      new THREE.MeshStandardMaterial({ color: 0x333344 })
-    )
-    gunBody.position.z = -0.1
-    this.gunGroup.add(gunBody)
-    this.gunModel = gunBody
-
-    window.addEventListener('keydown', (e) => {
-      this.keys[e.code] = true
-      if (e.code === 'Space') this.jumpQueued = true
+    window.addEventListener('keydown', (event) => {
+      if (!this.enabled || !this.controls?.isLocked) return
+      this.keys[event.code] = true
+      if (event.code === 'Space') {
+        event.preventDefault()
+        if (!event.repeat) this.jumpQueued = true
+      }
     })
-    window.addEventListener('keyup', (e) => { this.keys[e.code] = false })
-    // 点击画布时请求指针锁定（浏览器要求用户手势）
-    this.domElement.addEventListener('click', () => {
-      if (!this.controls?.isLocked) this.safeLock()
-    })
+    window.addEventListener('keyup', (event) => { this.keys[event.code] = false })
+    domElement.addEventListener('click', () => { if (this.canLock()) this.safeLock() })
+    this.reset()
   }
 
   async initControls() {
-    const { PointerLockControls } = await import('three/examples/jsm/controls/PointerLockControls.js')
     this.controls = new PointerLockControls(this.camera, this.domElement)
-
-    this.controls.addEventListener('lock', () => {
-      this.lockFailed = false
-    })
-    this.controls.addEventListener('unlock', () => {
-      // 不做处理，由主循环自动检测显示提示
-    })
+    this.controls.addEventListener('lock', () => { this.lockFailed = false })
+    this.controls.addEventListener('unlock', () => this.clearInput())
+    this.domElement.ownerDocument.addEventListener('pointerlockerror', () => { this.lockFailed = true })
   }
 
   safeLock() {
-    if (!this.controls) return
-    if (this.controls.isLocked) return
-    this.controls.lock()
+    if (!this.controls || this.controls.isLocked) return
+    this.lockFailed = false
+    try { this.domElement.requestPointerLock()?.catch?.(() => { this.lockFailed = true }) }
+    catch { this.lockFailed = true }
   }
 
+  clearInput() { this.keys = {}; this.jumpQueued = false }
+  setEnabled(value) { this.enabled = value; if (!value) this.clearInput() }
+  get footPosition() { return this.motor.position }
+  get supportId() { return this.motor.supportId }
   get forward() {
-    const dir = new THREE.Vector3()
-    this.camera.getWorldDirection(dir)
-    dir.y = 0
-    dir.normalize()
-    return dir
+    const direction = this.camera.getWorldDirection(new THREE.Vector3()).setY(0)
+    return direction.lengthSq() > 0.001 ? direction.normalize() : new THREE.Vector3(0, 0, -1)
+  }
+  get right() { const f = this.forward; return new THREE.Vector3(-f.z, 0, f.x) }
+
+  reset() {
+    this.hp = this.maxHp = CONFIG.player.maxHp
+    this.moveSpeed = CONFIG.player.moveSpeed
+    this.speedMult = 1
+    this.invuln = false
+    this.invulnTimer = 0
+    this.lastDamage = null
+    this.ladderLatch = null
+    this.motor.reset(this.spawn)
+    this.clearInput()
+    this.syncCamera()
+    this.camera.rotation.set(0, this.spawnYaw || 0, 0)
+    this.camera.fov = CONFIG.view.fov
+    this.camera.updateProjectionMatrix()
   }
 
-  get right() {
-    const f = this.forward
-    return new THREE.Vector3(-f.z, 0, f.x)
+  tryLadder() {
+    if (this.motor.traversal) return false
+    this.motor.carry()
+    const ladders = this.getLadders()
+    const latched = ladders.find((ladder) => ladder.id === this.ladderLatch)
+    if (latched && [latched.bottom, latched.top].every((end) =>
+      this.footPosition.distanceTo(end) > CONFIG.player.ladderReleaseRange)) this.ladderLatch = null
+    if (!latched) this.ladderLatch = null
+    if (!this.motor.grounded) return false
+    for (const ladder of ladders) {
+      if (ladder.id === this.ladderLatch) continue
+      for (const [start, target] of [[ladder.bottom, ladder.top], [ladder.top, ladder.bottom]]) {
+        const distance = Math.hypot(this.footPosition.x - start.x, this.footPosition.z - start.z)
+        if (distance <= CONFIG.player.ladderContactRange &&
+          Math.abs(this.footPosition.y - start.y) <= CONFIG.player.ladderHeightTolerance) {
+          const waypoints = target === ladder.top ? [ladder.bottom, ...(ladder.waypoints || [])] : ladder.downWaypoints
+          if (this.motor.startClimb(target, ladder.duration ?? 1.1, ladder.bodyId, { waypoints })) {
+            this.ladderLatch = ladder.id
+            return true
+          }
+        }
+      }
+    }
+    return false
   }
 
-  update(dt, inner, enemyGroups, paused, obstacles) {
-    if (paused || !this.controls?.isLocked) return
-
-    if (this.invulnTimer > 0) this.invulnTimer -= dt
-
-    const p = CONFIG.player
-    const sprinting = this.keys['ShiftLeft'] || this.keys['ShiftRight']
-    const speed = this.moveSpeed * this.speedMult * (sprinting ? CONFIG.player.sprintMult : 1)
+  update(dt) {
+    if (!(dt > 0) || !this.enabled || !this.controls?.isLocked) return
+    this.invulnTimer = Math.max(0, this.invulnTimer - dt)
     const move = new THREE.Vector3()
-    if (this.keys['KeyW']) move.add(this.forward)
-    if (this.keys['KeyS']) move.sub(this.forward)
-    if (this.keys['KeyD']) move.add(this.right)
-    if (this.keys['KeyA']) move.sub(this.right)
-    if (move.lengthSq() > 0) {
-      move.normalize().multiplyScalar(speed * dt)
-      this.pos.add(move)
-    }
-    for (const g of enemyGroups) {
-      if (this.ghost) break
-      const enemyRef = g.userData.enemyRef
-      if (enemyRef && enemyRef.dead) continue
-      const r = g.userData.centerHeight + 0.3
-      const dx = this.pos.x - g.position.x
-      const dz = this.pos.z - g.position.z
-      const d = Math.hypot(dx, dz)
-      const min = p.radius + r
-      if (d > 0.001 && d < min) {
-        this.pos.x += (dx / d) * (min - d)
-        this.pos.z += (dz / d) * (min - d)
-      }
-    }
-    if (obstacles && !this.ghost) resolveObstacles(this.pos, p.radius, obstacles)
-    const grounded = this.pos.y <= p.height
-    if (this.jumpQueued && grounded) this.yVel = p.jump.velocity
+    if (this.keys.KeyW) move.add(this.forward)
+    if (this.keys.KeyS) move.sub(this.forward)
+    if (this.keys.KeyD) move.add(this.right)
+    if (this.keys.KeyA) move.sub(this.right)
+    if (move.lengthSq()) move.normalize()
+    const wasGrounded = this.motor.grounded
+    const ladder = this.tryLadder()
+    const sprinting = this.keys.ShiftLeft || this.keys.ShiftRight
+    this.motor.update(dt, {
+      move, jump: this.jumpQueued && !ladder,
+      traverse: this.jumpQueued && !!this.keys.KeyW && !ladder,
+      speed: this.moveSpeed * this.speedMult * (sprinting ? CONFIG.player.sprintMult : 1),
+      sprint: false,
+    })
     this.jumpQueued = false
-    if (this.pos.y > p.height || this.yVel > 0) {
-      this.yVel -= p.jump.gravity * dt
-      this.pos.y += this.yVel * dt
-      if (this.pos.y <= p.height) {
-        this.pos.y = p.height
-        this.yVel = 0
-        if (this._wasAirborne) playLand()
-      }
-      this._wasAirborne = this.pos.y > p.height
-    }
-    if (!this.ghost) {
-      this.pos.x = THREE.MathUtils.clamp(this.pos.x, -inner + p.radius, inner - p.radius)
-      this.pos.z = THREE.MathUtils.clamp(this.pos.z, -inner + p.radius, inner - p.radius)
-    }
+    if (!wasGrounded && this.motor.grounded) playLand()
+    this.syncCamera()
+  }
+
+  syncCamera() {
+    this.pos.copy(this.motor.position).add(new THREE.Vector3(0, CONFIG.player.height, 0))
     this.camera.position.copy(this.pos)
   }
 
-  takeDamage(amount) {
-    if (this.invuln) return false
-    if (this.invulnTimer > 0) return false
-    this.hp -= amount
+  takeDamage(amount, cause = 'enemy') {
+    if (this.invuln || (cause !== 'train' && this.invulnTimer > 0)) return false
+    this.hp = Math.max(0, this.hp - amount)
     this.invulnTimer = CONFIG.player.invulnAfterHit
+    this.lastDamage = cause
     return true
   }
 
-  healOrGrow(amount) {
-    this.maxHp += amount
-    this.hp += amount
-  }
+  healOrGrow(amount) { this.maxHp += amount; this.hp += amount }
 }

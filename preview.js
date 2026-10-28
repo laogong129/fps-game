@@ -1,169 +1,153 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { CONFIG } from './src/config.js'
+import { normalizeWeaponModel } from './src/game/weapon-model.js'
 
-const canvas = document.getElementById('c')
+const element = (id) => document.getElementById(id)
+const canvas = element('c')
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
-renderer.setPixelRatio(window.devicePixelRatio)
-
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x20242e)
 scene.fog = new THREE.Fog(0x20242e, 8, 24)
-
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 50)
-camera.position.set(1.3, 0.9, 3.6)
-
+const camera = new THREE.PerspectiveCamera(CONFIG.view.fov, window.innerWidth / window.innerHeight, 0.01, 50)
+camera.position.set(0.9, 0.3, 0.75)
 const controls = new OrbitControls(camera, canvas)
+controls.target.set(0, -0.05, -0.3)
 controls.enableDamping = true
 controls.maxPolarAngle = Math.PI / 2
-
 const grid = new THREE.GridHelper(20, 20, 0x55617a, 0x39414f)
 grid.position.y = -0.6
 scene.add(grid)
-const floorP = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshBasicMaterial({ color: 0x2b3140, side: THREE.DoubleSide }))
-floorP.rotation.x = Math.PI / 2
-floorP.position.y = -0.62
-scene.add(floorP)
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60),
+  new THREE.MeshBasicMaterial({ color: 0x2b3140, side: THREE.DoubleSide }))
+floor.rotation.x = Math.PI / 2
+floor.position.y = -0.62
+scene.add(floor)
 const light = new THREE.DirectionalLight(0xffffff, 1.2)
 light.position.set(2, 4, 3)
-scene.add(light)
-scene.add(new THREE.AmbientLight(0xffffff, 0.5))
-
-// 枪摆放在场景中供自由观察（模拟游戏 gunGroup 位置）
+scene.add(light, new THREE.AmbientLight(0xffffff, 0.5))
 const modelRig = new THREE.Group()
-modelRig.position.set(0, -0.4, -2.6)
 scene.add(modelRig)
-
-// 第一人称虚拟 gunGroup（游戏里 camera 的子物体位置）
-const camRig = new THREE.Group()
-scene.add(camRig)
-const vcam = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 50)
-camRig.add(vcam)
+const firstPersonCamera = new THREE.PerspectiveCamera(CONFIG.view.fov, window.innerWidth / window.innerHeight, 0.1, 50)
+scene.add(firstPersonCamera)
 const gunGroup = new THREE.Group()
 gunGroup.position.set(0.25, -0.4, -0.5)
-vcam.add(gunGroup)
-
-const fpCrosshair = document.getElementById('crosshair')
-fpCrosshair.style.display = 'none'
-
-const GUNS = {
-  pistol: { file: 'assets/models/weapons/pistol.glb', label: '手枪' },
-  shotgun: { file: 'assets/models/weapons/shotgun.glb', label: '霰弹枪' },
-  rifle: { file: 'assets/models/weapons/rifle.glb', label: '步枪' },
-}
+firstPersonCamera.add(gunGroup)
 
 const models = {}
 let current = 'pistol'
 let modelGroup = null
+const axes = ['x', 'y', 'z']
 
-const loader = new GLTFLoader()
-for (const [key, g] of Object.entries(GUNS)) {
-  loader.load(g.file, (gltf) => {
-    const root = new THREE.Group()
-    root.add(gltf.scene)
-    models[key] = root
-    if (key === current) attach()
+function resetInputs() {
+  const config = CONFIG.gunModel[current]
+  element('s').value = 1
+  axes.forEach((axis, index) => {
+    element(`r${axis}`).value = config.rot[index]
+    element(`p${axis}`).value = config.pos[index]
   })
+  element('flip').checked = false
+  element('copy-status').textContent = ''
 }
 
-function attach() {
-  if (modelGroup) { modelRig.remove(modelGroup); gunGroup.remove(modelGroup); modelGroup = null }
-  modelGroup = models[current] ? models[current].clone(true) : null
-  if (!modelGroup) return
-  // 默认放在自由观察位
-  modelRig.add(modelGroup)
-  apply()
-  syncMode()
+function readSettings() {
+  const config = CONFIG.gunModel[current]
+  const round = (value) => Number(value.toFixed(4))
+  return {
+    file: config.file,
+    length: round(config.length * Number(element('s').value)),
+    sourceRot: [...config.sourceRot],
+    rot: axes.map((axis) => round(Number(element(`r${axis}`).value) +
+      (axis === 'y' && element('flip').checked ? 180 : 0))),
+    pos: axes.map((axis) => round(Number(element(`p${axis}`).value))),
+  }
 }
 
-function deg(v) { return v * (3.14159 / 180) }
-
-function apply() {
-  if (!modelGroup) return
-  const s = parseFloat(document.getElementById('s').value)
-  let ry = parseFloat(document.getElementById('ry').value)
-  if (document.getElementById('flip').checked) ry += 180
-  const rx = parseFloat(document.getElementById('rx').value)
-  const rz = parseFloat(document.getElementById('rz').value)
-  const px = parseFloat(document.getElementById('px').value)
-  const py = parseFloat(document.getElementById('py').value)
-  const pz = parseFloat(document.getElementById('pz').value)
-  modelGroup.scale.setScalar(s)
-  modelGroup.rotation.set(deg(rx), deg(ry), deg(rz))
-  modelGroup.position.set(px, py, pz)
-  updateJSON({ s, rx, ry, rz, px, py, pz })
+function updateJSON(settings) {
+  element('s_v').textContent = `${Number(element('s').value).toFixed(2)}×`
+  for (const [index, axis] of axes.entries()) {
+    element(`r${axis}_v`).textContent = `${Number(settings.rot[index].toFixed(1))}°`
+    element(`p${axis}_v`).textContent = settings.pos[index].toFixed(3)
+  }
+  element('jsonbox').textContent = JSON.stringify(settings, null, 2)
 }
 
 function syncMode() {
-  const fp = document.getElementById('fp').checked
-  if (fp && modelGroup) {
-    if (modelRig.children.includes(modelGroup)) modelRig.remove(modelGroup)
-    if (!gunGroup.children.includes(modelGroup)) gunGroup.add(modelGroup)
-    modelRig.matrixWorldAutoUpdate = false
-    controls.enabled = false
-    vcam.lookAt(0, 0, -4)
-    fpCrosshair.style.display = 'block'
-    // 第一人称下强制第一人称相机
-    camera.position.set(1.3, 0.9, 3.6)
-    controls.target.copy(modelRig.position)
-    controls.update()
-  } else {
-    if (gunGroup.children.includes(modelGroup)) gunGroup.remove(modelGroup)
-    if (!modelRig.children.includes(modelGroup)) modelRig.add(modelGroup)
-    controls.enabled = true
-    fpCrosshair.style.display = 'none'
+  const firstPerson = element('fp').checked
+  controls.enabled = !firstPerson
+  element('crosshair').style.display = firstPerson ? 'block' : 'none'
+  if (modelGroup) (firstPerson ? gunGroup : modelRig).add(modelGroup)
+}
+
+function apply() {
+  const settings = readSettings()
+  updateJSON(settings)
+  if (modelGroup) { modelGroup.removeFromParent(); modelGroup = null }
+  if (models[current]) {
+    modelGroup = normalizeWeaponModel(models[current], settings)
+    element('model-status').textContent = `${CONFIG.weapon[current].label} · 枪身长度 ${settings.length.toFixed(3)} 米`
+  } else element('model-status').textContent = '正在加载原始模型…'
+  syncMode()
+}
+
+const tabs = element('tabs')
+for (const key of Object.keys(CONFIG.gunModel)) {
+  const button = document.createElement('button')
+  button.textContent = CONFIG.weapon[key].label
+  button.classList.toggle('on', key === current)
+  button.onclick = () => {
+    current = key
+    resetInputs()
+    apply()
+    tabs.querySelectorAll('button').forEach((tab) => tab.classList.toggle('on', tab === button))
+  }
+  tabs.append(button)
+}
+for (const id of ['s', 'rx', 'ry', 'rz', 'px', 'py', 'pz', 'flip']) element(id).addEventListener('input', apply)
+element('fp').addEventListener('input', syncMode)
+element('copy').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(element('jsonbox').textContent)
+    element('copy-status').textContent = '已复制，可直接写入 gunModel 配置。'
+  } catch {
+    const selection = window.getSelection()
+    const range = document.createRange()
+    range.selectNodeContents(element('jsonbox'))
+    selection.removeAllRanges()
+    selection.addRange(range)
+    element('copy-status').textContent = '参数已选中，可按 Ctrl+C 复制。'
   }
 }
 
-function updateJSON(v) {
-  const flip = document.getElementById('flip').checked
-  document.getElementById('s_v').textContent = v.s.toFixed(2)
-  document.getElementById('rx_v').textContent = v.rx + '°'
-  document.getElementById('ry_v').textContent = v.ry + '°'
-  document.getElementById('rz_v').textContent = v.rz + '°'
-  document.getElementById('px_v').textContent = v.px.toFixed(2)
-  document.getElementById('py_v').textContent = v.py.toFixed(2)
-  document.getElementById('pz_v').textContent = v.pz.toFixed(2)
-  const json = {
-    file: GUNS[current].file,
-    scale: +v.s.toFixed(3),
-    rot: [+v.rx.toFixed(1), +v.ry.toFixed(1), +v.rz.toFixed(1)],
-    pos: [+v.px.toFixed(3), +v.py.toFixed(3), +v.pz.toFixed(3)],
-    flip: flip,
-  }
-  document.getElementById('jsonbox').textContent = JSON.stringify(json, null, 2)
-}
-
-const tabs = document.getElementById('tabs')
-for (const [key, g] of Object.entries(GUNS)) {
-  const b = document.createElement('button')
-  b.textContent = g.label
-  b.classList.toggle('on', key === current)
-  b.onclick = () => { current = key; attach(); tabs.querySelectorAll('button').forEach((x) => x.classList.remove('on')); b.classList.add('on') }
-  tabs.appendChild(b)
-}
-
-for (const id of ['s', 'rx', 'ry', 'rz', 'px', 'py', 'pz', 'flip', 'fp']) {
-  document.getElementById(id).addEventListener('input', () => {
-    if (current && models[current]) { apply(); syncMode() }
+resetInputs()
+apply()
+const loader = new GLTFLoader()
+for (const [key, config] of Object.entries(CONFIG.gunModel)) {
+  loader.load(`${import.meta.env.BASE_URL}${config.file}`, (gltf) => {
+    models[key] = gltf.scene
+    if (key === current) apply()
+  }, undefined, () => {
+    if (key === current) element('model-status').textContent = '模型加载失败，请检查资源路径。'
   })
 }
 
-let activeCam = camera
 function render() {
-  const fp = document.getElementById('fp').checked
-  controls.update()
-  activeCam = fp ? vcam : camera
-  renderer.render(scene, activeCam)
+  if (controls.enabled) controls.update()
+  renderer.render(scene, element('fp').checked ? firstPersonCamera : camera)
   requestAnimationFrame(render)
 }
 render()
-
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight
-  vcam.aspect = window.innerWidth / window.innerHeight
-  camera.updateProjectionMatrix()
-  vcam.updateProjectionMatrix()
+  for (const view of [camera, firstPersonCamera]) {
+    view.aspect = window.innerWidth / window.innerHeight
+    view.updateProjectionMatrix()
+  }
   renderer.setSize(window.innerWidth, window.innerHeight)
 })
+if (import.meta.env.DEV) {
+  window.__weaponPreview = () => ({ current, modelGroup, gunGroup, scene,
+    camera, firstPersonCamera, settings: readSettings() })
+}

@@ -3,8 +3,8 @@
  * 代码测试工程师 - Test Engineer
  * 职责：语法检查、模块加载、构建验证、运行时自测
  */
-import { execSync } from 'child_process';
-import { readFileSync, existsSync, writeFileSync } from 'fs';
+import { execSync, execFileSync } from 'child_process';
+import { readdirSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -23,18 +23,15 @@ console.log('='.repeat(50));
 
 // ── 1. 语法检查 ──
 console.log('\n【1/4】语法检查...');
-for (const f of [
-  'src/main.js', 'src/config.js',
-  'src/game/spawner.js', 'src/game/player.js', 'src/game/weapon.js',
-  'src/game/enemy.js', 'src/game/levelup.js', 'src/game/hud.js',
-  'src/game/text.js', 'src/game/arena.js', 'src/game/sound.js', 'src/game/style.js',
-]) {
+const sourceFiles = readdirSync(SRC_DIR, { recursive: true }).filter((file) => file.endsWith('.js'));
+for (const file of sourceFiles) {
+  const f = resolve(SRC_DIR, file);
   try {
-    execSync(`node --check ${f}`, { cwd: ROOT, stdio: 'pipe' });
-    check(f, true, '语法正确');
+    execFileSync(process.execPath, ['--check', f], { cwd: ROOT, stdio: 'pipe' });
+    check(`src/${file}`, true, '语法正确');
   } catch (e) {
     const msg = e.stderr?.toString() || e.message;
-    check(f, false, msg.split('\n')[0]);
+    check(`src/${file}`, false, msg.split('\n')[0]);
   }
 }
 
@@ -73,7 +70,7 @@ console.log('\n【4/4】关键文件检查...');
 const requiredFiles = [
   'src/main.js', 'src/config.js',
   'src/game/spawner.js', 'src/game/player.js', 'src/game/weapon.js',
-  'src/game/enemy.js', 'index.html',
+  'src/game/enemy.js', 'src/game/world-collision.js', 'src/game/railway-layout.js', 'src/game/train.js', 'index.html',
 ];
 for (const f of requiredFiles) {
   check(f, existsSync(resolve(ROOT, f)), f + ' 存在');
@@ -91,6 +88,7 @@ if (errors.length > 0) {
   process.exit(1);
 } else {
   console.log('✅ 代码测试工程师：全部通过');
+  mkdirSync(resolve(ROOT, '.qa'), { recursive: true });
   writeFileSync(resolve(ROOT, '.qa/test-engineer.passed'), Date.now().toString());
   process.exit(0);
 }

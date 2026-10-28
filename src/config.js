@@ -1,11 +1,11 @@
 export const CONFIG = {
   arena: {
-    size: 60,
+    size: 120,
     wallHeight: 4,
     wallColor: 0x9c2f26,
     floorColor: 0x6b5a44,
     fogColor: 0x7a5c8a,
-    fogFar: 90,
+    fogFar: 190,
   },
 
   player: {
@@ -19,15 +19,36 @@ export const CONFIG = {
     contactRadius: 1.2,
     invulnAfterHit: 0.5,
     jump: { velocity: 5.4, gravity: 18 },
+    bodyHeight: 1.8,
+    stepHeight: 0.3,
+    vaultHeight: 1.2,
+    mantleHeight: 2,
+    ladderContactRange: 0.65,
+    ladderReleaseRange: 1.05,
+    ladderHeightTolerance: 0.3,
   },
 
   weapon: {
-    pistol: { label: '手枪', damage: 30, fireInterval: 1.0, magSize: 8, reloadTime: 1.2,
-      recoil: { kick: 0.08, recovery: 2.5 } },
-    shotgun: { label: '霰弹枪', damage: 12, pellets: 6, spread: 0.12, fireInterval: 0.9, magSize: 4, reloadTime: 1.6,
-      recoil: { kick: 0.18, recovery: 2.5 } },
-    rifle: { label: '步枪', damage: 24, fireInterval: 0.2, magSize: 30, reloadTime: 1.8, auto: true, adsFov: 42,
-      recoil: { kick: 0.06, recovery: 3.0 } },
+    pistol: { label: '手枪', damage: 28, fireInterval: 0.32, magSize: 12, reloadTime: 1.05, headshotMult: 1.5,
+      adsFov: 58, baseSpread: 0.0012, maxSpread: 0.012, spreadPerShot: 0.0016,
+      spreadRecovery: 0.045, spreadRecoveryDelay: 0.12, adsSpreadMult: 0.5,
+      movingSpread: 0.003, sprintSpread: 0.012, airSpread: 0.012,
+      recoilPitch: 0.012, recoilReturn: 0.9, recoilRecovery: 12,
+      muzzleSpeed: 230, gravity: 9.81, zeroRange: 35, maxDistance: 110,
+      falloffStart: 50, falloffEnd: 105, minDamageMult: 0.65 },
+    shotgun: { label: '霰弹枪', damage: 11, pellets: 7, spread: 0.075, fireInterval: 0.88, magSize: 6, reloadTime: 1.9,
+      adsFov: 62, maxSpread: 0.095, spreadPerShot: 0.005, spreadRecovery: 0.12,
+      spreadRecoveryDelay: 0.18, adsSpreadMult: 0.72, movingSpread: 0.012, sprintSpread: 0.03, airSpread: 0.035,
+      falloffStart: 8, falloffEnd: 24, minDamageMult: 0.15,
+      knockback: 1.8, knockbackRange: 9, tankKnockbackMult: 0.3,
+      recoilPitch: 0.028, recoilReturn: 0.85, recoilRecovery: 9,
+      muzzleSpeed: 240, gravity: 9.81, zeroRange: 15, maxDistance: 45 },
+    rifle: { label: '步枪', damage: 18, fireInterval: 0.11, magSize: 30, reloadTime: 1.65, auto: true, adsFov: 48,
+      recoilPitch: 0.0045, recoilReturn: 0.68, recoilRecovery: 13.5,
+      baseSpread: 0.004, spreadPerShot: 0.0018, maxSpread: 0.026, spreadRecovery: 0.065,
+      spreadRecoveryDelay: 0.14, adsSpreadMult: 0.38, movingSpread: 0.004, sprintSpread: 0.014, airSpread: 0.018,
+      muzzleSpeed: 560, gravity: 9.81, zeroRange: 50, maxDistance: 165,
+      falloffStart: 70, falloffEnd: 150, minDamageMult: 0.7 },
   },
 
   view: {
@@ -56,12 +77,10 @@ export const CONFIG = {
     ],
   },
 
-  // 真实枪械 GLB 模型（替换上方的方块造型）
-  // file: 资源路径; scale/rot/pos: 相对持枪挂点 gunGroup 的变换
   gunModel: {
-    pistol: { file: 'assets/models/weapons/pistol.glb', scale: 0.46, rot: [0, 0, 0], pos: [0, 0, 0] },
-    shotgun: { file: 'assets/models/weapons/shotgun.glb', scale: 0.4, rot: [0, 0, 0], pos: [0, 0, 0] },
-    rifle: { file: 'assets/models/weapons/rifle.glb', scale: 0.5, rot: [0, 0, 0], pos: [0, 0, 0] },
+    pistol: { file: 'assets/models/weapons/railway-pistol.glb', length: 0.42, sourceRot: [0, 0, 0], rot: [0, 14.3239, 0], pos: [0.02, 0.065, 0.08] },
+    shotgun: { file: 'assets/models/weapons/railway-pump-shotgun.glb', length: 0.9, sourceRot: [0, 0, 0], rot: [0, 14.3239, 0], pos: [0.02, 0.05, 0.08] },
+    rifle: { file: 'assets/models/weapons/railway-carbine.glb', length: 0.7, sourceRot: [0, 0, 0], rot: [0, 14.3239, 0], pos: [0.02, -0.015, 0.08] },
   },
 
   projectile: {
@@ -146,23 +165,25 @@ export const CONFIG = {
       behavior: 'boss',
     },
     maxAlive: 40,
-    spawnDistance: [24, 28],
-    separation: 0.9,
+    spawnDistance: [25, 40],
+    maxSpawnDistance: 65,
     spawnWarningTime: 1.5,
     spawnMarker: { color: 0xff3344, ringInner: 0.55, ringOuter: 1.1, pillarHeight: 6 },
     maxSpawnMarkers: 6,
   },
 
   wave: {
-    baseInterval: 30,
-    perWaveCount: 6,
-    countGrowth: 3,
-    hpGrowth: 1.12,
+    preparationTime: 15,
+    spawnInterval: 3.2,
+    finalEscortCount: 18,
+    perWaveCount: 8,
+    countGrowth: 4,
+    hpGrowth: 1,
     table: [
-      { type: 'tank', fromWave: 3, weight: 35 },
-      { type: 'spitter', fromWave: 4, weight: 25 },
-      { type: 'splitter', fromWave: 5, weight: 20 },
-      { type: 'charger', fromWave: 6, weight: 20 },
+      { type: 'tank', fromWave: 3, weight: 25 },
+      { type: 'spitter', fromWave: 4, weight: 15 },
+      { type: 'splitter', fromWave: 5, weight: 10 },
+      { type: 'charger', fromWave: 6, weight: 10 },
     ],
   },
 
@@ -170,6 +191,7 @@ export const CONFIG = {
     xpForLevel: 10,
     xpGrowth: 1.5,
     hpBoost: 20,
+    minFireInterval: 0.075,
     choices: [
       { key: 'damage', name: '伤害 +5' },
       { key: 'rof', name: '射速 +20%' },
@@ -186,12 +208,12 @@ export const CONFIG = {
     magnetRange: 6.0,
     collectRange: 1.2,
     maxOrbs: 60,
-    ttl: 5,
-    fadeStart: 3,
+    ttl: 20,
+    fadeStart: 17,
   },
   heal: {
-    small: { value: 15, chance: 0.2, color: 0xe74c3c, radius: 0.45, ttl: 5, fadeStart: 3 },
-    tank: { value: 60, chance: 1.0, color: 0xffd700, radius: 0.6, ttl: 5, fadeStart: 3 },
+    small: { value: 15, chance: 0.2, color: 0xe74c3c, radius: 0.45, ttl: 10, fadeStart: 7 },
+    tank: { value: 60, chance: 1.0, color: 0xffd700, radius: 0.6, ttl: 10, fadeStart: 7 },
   },
 
   crate: {
@@ -209,12 +231,15 @@ export const CONFIG = {
   },
 
   goal: {
-    winWave: 10,
+    winWave: 8,
   },
 
-  heal: {
-    small: { value: 15, chance: 0.2, color: 0xe74c3c, radius: 0.45 },
-    tank: { value: 60, chance: 1.0, color: 0xffd700, radius: 0.6 },
+  train: {
+    dwellTime: 20,
+    warningTime: 6,
+    speed: 8,
+    playerDamageRatio: 0.8,
+    bossDamageRatio: 0.3,
   },
 }
 

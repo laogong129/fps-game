@@ -1,153 +1,75 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FPS 幸存者围城</title>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      @font-face {
-        font-family: 'PixelDamage';
-        src: url('fonts/press-start-2p.woff2') format('woff2');
-        font-weight: normal;
-      }
-      body { overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
-      #game-canvas { display: block; }
-      .overlay {
-        position: fixed; inset: 0; display: none;
-        align-items: center; justify-content: center;
-        flex-direction: column; gap: 16px;
-        background: rgba(10, 10, 20, 0.85);
-        color: #fff; z-index: 10;
-      }
-      .overlay.show { display: flex; }
-      .overlay h1 { font-size: 42px; letter-spacing: 4px; }
-      .overlay .hint { color: #999; font-size: 14px; line-height: 1.8; text-align: center; }
-      .overlay .stats { font-size: 18px; line-height: 1.8; color: #ccc; }
-      .btn {
-        padding: 12px 48px; font-size: 18px; cursor: pointer;
-        background: #3a7afe; color: #fff; border: none; border-radius: 6px;
-      }
-      .btn:hover { background: #5a91ff; }
-      .hide { display: none !important; }
-      #dmg-flash {
-        position: fixed; inset: 0; pointer-events: none; z-index: 6;
-        background: radial-gradient(ellipse at center, transparent 55%, rgba(200,0,0,0.55) 100%);
-        opacity: 0; transition: opacity 0.25s;
-      }
-      #headshot-flash {
-        position: fixed; left: 50%; bottom: 12.5%; transform: translateX(-50%);
-        width: 240px; height: 240px; pointer-events: none; z-index: 6;
-        background: url('/fps-game/assets/headshot-skull.png') center/contain no-repeat;
-        opacity: 0;
-        animation: none;
-      }
-      #headshot-flash.show {
-        animation: headshot-pop 0.8s steps(5, end) both;
-      }
-      @keyframes headshot-pop {
-        0% { opacity: 0; transform: translateX(-50%) scale(0.4); filter: blur(3px); }
-        25% { opacity: 1; transform: translateX(-50%) scale(1.15); filter: blur(0); }
-        60% { opacity: 0.95; transform: translateX(-50%) scale(1.0); }
-        100% { opacity: 0; transform: translateX(-50%) scale(0.85); }
-      }
-      #lock-hint {
-        position: fixed; left: 50%; top: 20%; transform: translateX(-50%);
-        z-index: 7; pointer-events: none; display: none;
-        background: rgba(0,0,0,0.6); color: #f1c40f; font-size: 16px;
-        padding: 10px 22px; border-radius: 8px; border: 1px solid rgba(241,196,15,0.4);
-      }
-      #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; color: #fff; }
-      .hud-panel {
-        position: absolute; background: rgba(0,0,0,0.4);
-        border-radius: 8px; padding: 10px 14px; backdrop-filter: blur(4px);
-      }
-      #hud-stats { left: 16px; top: 16px; font-size: 14px; line-height: 1.7; }
-      #hud-weapon { right: 16px; bottom: 16px; font-size: 22px; font-weight: bold; }
-      #hud-ammo { right: 16px; bottom: 54px; font-size: 13px; color: #aaa; }
-      .bar { width: 200px; height: 10px; background: rgba(255,255,255,0.15); border-radius: 5px; overflow: hidden; margin-top: 4px; }
-      .bar-fill { height: 100%; border-radius: 5px; transition: width 0.2s; }
-      #hp-fill { background: #e74c3c; }
-      #xp-fill { background: #f1c40f; }
-      #crosshair {
-        position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-        z-index: 4; pointer-events: none; color: rgba(255,255,255,0.85); font-size: 20px;
-      }
-      #levelup {
-        position: fixed; inset: 0; z-index: 8;
-        display: none; align-items: center; justify-content: center;
-        background: rgba(0,0,0,0.5);
-      }
-      #levelup.show { display: flex; }
-      #levelup-inner { text-align: center; color: #fff; }
-      #levelup-inner h2 { font-size: 30px; margin-bottom: 20px; color: #f1c40f; }
-      .choice {
-        display: inline-block; width: 180px; margin: 10px; padding: 18px;
-        background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.2);
-        border-radius: 10px; cursor: pointer; font-size: 15px;
-      }
-      .choice:hover { background: rgba(255,255,255,0.18); border-color: #f1c40f; }
-    </style>
-    <script type="module" crossorigin src="/fps-game/assets/index-DHaNub8P.js"></script>
+    <meta name="theme-color" content="#221c2a" />
+    <link rel="icon" href="data:," />
+    <title>暮轨幸存者 · FPS</title>
+    <script type="module" crossorigin src="/fps-game/assets/index-DMdv8TPH.js"></script>
+    <link rel="stylesheet" crossorigin href="/fps-game/assets/index-D-Dg4tBV.css">
   </head>
   <body>
-    <div id="game-canvas"></div>
-
-    <div class="overlay show" id="start-screen">
-      <h1>FPS 幸存者围城</h1>
-      <div class="hint">
-        WASD 移动 &nbsp;|&nbsp; Shift 冲刺 &nbsp;|&nbsp; 空格跳跃 &nbsp;|&nbsp; 鼠标瞄准 &nbsp;|&nbsp; 左键射击（按住全自动）&nbsp;|&nbsp; 右键瞄（步枪）&nbsp;|&nbsp; R 换弹 &nbsp;|&nbsp; 1/2/3 切枪<br>
-        击杀敌人获得经验，升级三选一（含新枪解锁），能撑多久？
-      </div>
-      <button class="btn" id="start-btn">开始游戏</button>
-    </div>
-
-    <div class="overlay" id="gameover-screen">
-      <h1 id="gameover-title">阵亡</h1>
-      <div class="stats" id="gameover-stats"></div>
-      <button class="btn" id="restart-btn">再来一局（Enter）</button>
-      <button class="btn hide" id="continue-btn">继续战斗（无尽模式）</button>
-    </div>
-
+    <div id="game-canvas" aria-label="第一人称铁路街区战场"></div>
     <div id="hud">
-      <div class="hud-panel" id="hud-stats">
-        波次 <b id="hud-wave">1</b> &nbsp; 击杀 <b id="hud-kills">0</b><br>
-        生命 <b id="hp-num">100/100</b>
-        <div class="bar"><div class="bar-fill" id="hp-fill" style="width:100%"></div></div>
-        经验 Lv.<b id="hud-level">1</b> <b id="xp-num">0/10</b>
-        <div class="bar"><div class="bar-fill" id="xp-fill" style="width:0%"></div></div>
+      <section class="hud-panel wave-panel">
+        <div class="eyebrow">暮轨幸存者 <span id="hud-phase">待命</span></div>
+        <div class="wave-line">第 <b id="hud-wave">1</b><span> / 8 波</span></div>
+        <div id="hud-directions">附近街区</div>
+        <div class="muted">击杀 <b id="hud-kills">0</b> · 待清除 <b id="hud-remaining">0</b> · <span id="hud-time">0:00</span></div>
+      </section>
+      <section class="hud-panel train-panel" aria-label="列车动态">
+        <div class="eyebrow">夕凪线 / 列车动态</div>
+        <div id="train-status">西站停靠</div>
+        <div id="train-detail">停站可登车 · 留意灯声预警</div>
+      </section>
+      <section class="hud-panel minimap-panel"><canvas id="minimap" width="160" height="140" aria-label="街区地图"></canvas></section>
+      <section class="hud-panel vitals-panel">
+        <div class="vital-line"><span>生命</span><b id="hp-num">100 / 100</b></div>
+        <div class="bar"><div id="hp-fill" class="bar-fill"></div></div>
+        <div class="vital-line xp-label"><span>强化等级 <b id="hud-level">1</b></span><span id="xp-num">0 / 10</span></div>
+        <div class="bar xp-bar"><div id="xp-fill" class="bar-fill"></div></div>
+      </section>
+      <section class="hud-panel weapon-panel">
+        <div id="hud-weapon-name">手枪（1）</div><div id="hud-weapon">12 / 12</div>
+        <div id="hud-ammo">R 换弹 · 无限备用弹</div>
+      </section>
+      <div class="hud-panel prep-panel hide" id="prep-panel">
+        <span id="prep-countdown">备战 15 秒</span><button type="button" id="next-wave-btn">提前开波 <kbd>G</kbd></button>
       </div>
-      <div class="hud-panel" id="hud-ammo">换弹中…</div>
-      <div class="hud-panel" id="hud-weapon-name" style="right:16px;bottom:84px;font-size:14px;color:#f1c40f">手枪（1）</div>
-      <div class="hud-panel" id="hud-weapon">8 / 5</div>
-      <div id="crosshair">+</div>
+      <div id="crosshair" aria-hidden="true">+</div>
+      <div class="controls-hint">WASD 移动 · 碰梯自动攀爬 · 前进＋空格 翻越/攀边 · Shift 冲刺 · 1/2/3 切枪 · Esc 暂停</div>
+      <div id="announcement" class="hide" role="status"><strong></strong><span></span></div>
     </div>
-    <div id="dmg-flash"></div>
-    <div id="headshot-flash"></div>
-    <div id="lock-hint">
-      <div id="lock-hint-text">画面未锁定：点击按钮重新操控（Esc 退出）</div>
-      <button class="btn" id="relock-btn" style="margin-top:10px;padding:8px 30px">重新锁定鼠标</button>
-    </div>
-
-    <div id="debug-panel" class="hide" style="position:fixed;left:16px;bottom:16px;z-index:20;background:rgba(0,0,0,0.75);color:#8fd;font-family:monospace;font-size:12px;padding:10px 12px;border-radius:8px;line-height:1.7;pointer-events:auto">
-      <b style="color:#f1c40f">DEBUG（F3 隐藏）</b><br>
-      <span id="dbg-fps" style="white-space:pre">--</span><br>
-      <button id="dbg-level" style="margin-top:6px;padding:3px 10px;cursor:pointer;background:#3a7afe;color:#fff;border:none;border-radius:4px">跳到 3 级</button>
-      <button id="dbg-skipwave" style="margin-top:6px;margin-left:6px;padding:3px 10px;cursor:pointer;background:#27ae60;color:#fff;border:none;border-radius:4px">跳过等待</button>
-      <button id="dbg-collision" style="margin-top:6px;margin-left:6px;padding:3px 10px;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:4px">碰撞线框</button>
-      <button id="dbg-ghost" style="margin-top:6px;margin-left:6px;padding:3px 10px;cursor:pointer;background:#2c3e50;color:#fff;border:none;border-radius:4px">穿墙</button>
-      <button id="dbg-invuln" style="margin-top:6px;padding:3px 10px;cursor:pointer;background:#f39c12;color:#fff;border:none;border-radius:4px">无敌</button>
-      <div style="margin-top:6px">伤害倍率 <span id="dbg-dmg-val">×1</span>
-        <input id="dbg-dmg" type="range" min="0.1" max="10" step="0.1" value="1" style="width:110px;vertical-align:middle">
+    <div id="dmg-flash"></div><div id="headshot-flash"></div>
+    <section class="overlay show" id="start-screen" aria-labelledby="start-title">
+      <div class="screen-card start-card">
+        <div class="eyebrow">雨后铁路街区 / 单人生存</div><h1 id="start-title">暮轨<span>幸存者</span></h1>
+        <p class="lead">穿行街区与列车，迎战八波追击。</p>
+        <p class="screen-description">怪物会袭击你。翻越障碍、登上天桥，或在停站时进入车厢。留意道口预警，击败最后一波Boss和护卫。</p>
+        <div class="briefing"><span><b>01</b> 看街口预警，用高低差摆脱包围</span><span><b>02</b> 捡经验强化，停站登车与车顶作战</span><span><b>03</b> 只要活着并清场，就能通关</span></div>
+        <button class="btn primary" id="start-btn" disabled>正在准备战场…</button>
+        <p class="keyboard-guide">WASD 移动 · 鼠标瞄准 · 左键射击 · R 换弹<br>碰到梯口 自动攀爬 · 前进＋空格 翻越/攀边 · Shift 冲刺 · 1/2/3 切枪</p>
+        <p class="muted small">跑酷时仍可受伤；被行驶列车撞到会重伤，安全乘车不会。</p>
       </div>
-    </div>
-
-    <div id="levelup">
-      <div id="levelup-inner">
-        <h2>升级！选择一项强化</h2>
-        <div id="levelup-choices"></div>
+    </section>
+    <section class="overlay" id="pause-screen" aria-labelledby="pause-title">
+      <div class="screen-card compact-card"><div class="eyebrow">暂歇片刻</div><h2 id="pause-title">已暂停</h2>
+        <p>准备好后，继续穿行街区。</p><button class="btn primary" id="resume-btn">继续战斗</button>
+        <p id="lock-status" class="muted small">点击继续以锁定鼠标；Esc 随时暂停。</p>
       </div>
-    </div>
-
+    </section>
+    <section class="overlay" id="gameover-screen" aria-labelledby="gameover-title">
+      <div class="screen-card result-card"><div class="eyebrow">本局战报</div><h2 id="gameover-title">本次追击结束</h2>
+        <p id="result-reason"></p><div id="gameover-stats"></div><div id="result-upgrades"></div><div id="result-weapons"></div>
+        <div class="button-row"><button class="btn primary" id="restart-btn">再战一局 · Enter</button><button class="btn secondary" id="export-btn">导出本局战报</button></div>
+      </div>
+    </section>
+    <section class="overlay" id="levelup" aria-labelledby="upgrade-title">
+      <div class="upgrade-layout"><div class="eyebrow">局内强化</div><h2 id="upgrade-title">选择下一步打法</h2>
+        <p id="upgrade-count">选择一项强化</p><div id="levelup-choices"></div>
+        <p class="muted small">伤害、射速与弹匣强化仅作用于卡片标明的枪械。</p>
+      </div>
+    </section>
   </body>
 </html>

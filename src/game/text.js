@@ -89,4 +89,13 @@ export class FloatingText {
       }
     }
   }
+
+  clear() {
+    for (const sprite of this.pool) {
+      this.scene.remove(sprite)
+      sprite.material.map.dispose()
+      sprite.material.dispose()
+    }
+    this.pool.length = 0
+  }
 }

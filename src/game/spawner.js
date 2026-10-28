@@ -1,338 +1,217 @@
 import * as THREE from 'three'
 import { CONFIG, waveSpawnCount } from '../config.js'
-import {
-  createEnemy, chaseEnemy, updateSpitter, updateCharger, updateBoss, updateEnemyBars, enemyCenter, damageEnemy, updateEnemyAnim, updateParticles, setEnemyScene, hitZoneMultiplier, hitZoneAt,
-} from './enemy.js'
+import { createEnemy, enemyCenter, damageEnemy, updateEnemyBars, updateEnemyAnim,
+  updateParticles, clearEnemyParticles, hitZoneAt, hitZoneMultiplier } from './enemy.js'
+import { CharacterMotor } from './character-motor.js'
+import { SpawnWarnings } from './spawn-warnings.js'
+import { EnemyProjectiles } from './enemy-projectiles.js'
+import { enemyBody, updatePursuit, canMelee } from './pursuit.js'
+import { selectSpawn, enemyType, waveHints } from './survival-spawns.js'
+import { resolveCrowd } from './crowd.js'
 
 export class Spawner {
-  constructor(scene, events) {
+  constructor(scene, events = {}) {
     this.scene = scene
     this.events = events
+    this.world = events.world
+    this.navigation = events.navigation
     this.enemies = []
-    this.projectiles = []
-    this.projGeo = new THREE.SphereGeometry(CONFIG.projectile.radius, 10, 10)
-    this.projMat = new THREE.MeshStandardMaterial({ color: 0x2ecc71, emissive: 0x0e4424 })
-    this.wave = 1
-    this.waveTimer = 5
-    this.toSpawn = 0
-    this.spawnTimer = 0
-    this.spawnInterval = 1.2
-    this.crateWave = 0
-    this.pending = []
-    this.markers = new THREE.Group()
-    scene.add(this.markers)
+    this.warnings = new SpawnWarnings(scene)
+    this.markers = this.warnings.group
+    this.projectileSystem = new EnemyProjectiles(scene, events)
+    this.projectiles = this.projectileSystem.items
+    this.clear()
   }
-
-  getGroups() {
-    return this.enemies.map((e) => e.group)
-  }
-
+  get toSpawn() { return this.spawnQueue.length }
+  get waveNumber() { return Math.max(1, this.wave) }
+  get activeCount() { return this.enemies.filter((enemy) => !enemy.dead).length }
+  getGroups() { return this.enemies.filter((e) => !e.dead).map((e) => e.group) }
   getMeshes() {
-    const meshes = []
-    for (const e of this.enemies) {
-      if (e.dead || !e.body) continue
-      e.body.traverse((o) => { if (o.isMesh) meshes.push(o) })
-    }
-    return meshes
+    const result = []
+    for (const enemy of this.enemies) if (!enemy.dead) enemy.body?.traverse((mesh) => {
+      if (mesh.isMesh && !mesh.userData.isOutline) result.push(mesh)
+    })
+    return result
   }
-
   startWave() {
+    if (this.phase !== 'preparation' || this.wave >= CONFIG.goal.winWave) return false
     this.wave++
+    this.phase = 'combat'
     this.spawnTimer = 0
-    this.waveTimer = CONFIG.wave.baseInterval
-    if (this.wave === CONFIG.boss.wave) {
-      this.toSpawn = 0
-      this.spawnBoss()
+    this.preparationTimer = 0
+    const final = this.wave === CONFIG.goal.winWave
+    this.spawnQueue = Array.from({ length: final ? CONFIG.wave.finalEscortCount : waveSpawnCount(this.wave) }, () => enemyType(this.wave))
+    const first = { 3: 'tank', 4: 'spitter', 5: 'splitter', 6: 'charger' }[this.wave]
+    if (first) this.spawnQueue[0] = first
+    if (final) this.spawnQueue.unshift('boss')
+    if ([3, 6].includes(this.wave)) this.spawnCrate(this.events.player.footPosition)
+    this.events.onWaveStarted?.({ wave: this.wave, directions: this.lastDirection, hint: waveHints[this.wave] })
+    return true
+  }
+  spawnOne() {
+    if (!this.toSpawn) return false
+    const type = this.spawnQueue[0]
+    const body = enemyBody(type, CONFIG.enemy[type])
+    const selected = selectSpawn(this.events.layout, this.world, this.navigation, this.events.player,
+      body.radius, body.height, this.events.train, { type })
+    if (!selected) return false
+    this.lastDirection = selected.label
+    this.spawnQueue.shift()
+    this.createSpawnMarker(type, selected.point)
+    return true
+  }
+  createSpawnMarker(type, pos) { return this.warnings.add({ type, pos: pos.clone() }) }
+  materializeSpawn(desc) {
+    const body = enemyBody(desc.type, CONFIG.enemy[desc.type])
+    if (!this.world.capsuleClear(desc.pos, body.radius, body.height)) { this.spawnQueue.unshift(desc.type); return null }
+    const enemy = createEnemy(desc.type, 1, this.scene)
+    Object.assign(enemy, body)
+    enemy.motor = new CharacterMotor(this.world, { ...body, speed: enemy.def.speed, stepHeight: 0.3 })
+    enemy.motor.reset(desc.pos)
+    enemy.group.position.copy(enemy.motor.position)
+    this.enemies.push(enemy)
+    return enemy
+  }
+  spawnMinibugs(position) {
+    for (const sign of [-1, 1]) {
+      if (this.activeCount + this.markers.children.length >= CONFIG.enemy.maxAlive) return
+      const point = position.clone().add(new THREE.Vector3(sign * 0.65, 0, 0))
+      const floor = this.world.querySupport(point, { maxRise: 0.3, maxDrop: 8, radius: 0.2, height: 0.4 })
+      if (floor) this.materializeSpawn({ type: 'minibug', pos: floor.point })
+    }
+  }
+  fireProjectile(enemy, target) {
+    this.projectileSystem.fire(enemyCenter(enemy), target, enemy.def.projDamage || 18)
+  }
+  update(dt) {
+    if (this.phase === 'complete') return
+    this.updateCrate(dt, this.events.player.pos)
+    if (this.phase === 'preparation') {
+      this.preparationTimer = Math.max(0, this.preparationTimer - dt)
+      if (this.preparationTimer <= 0) this.startWave()
       return
     }
-    if (this.wave === CONFIG.goal.winWave) {
-      this.toSpawn = 0
-      if (this.events.onWin) this.events.onWin()
-      return
+    this.spawnTimer -= dt
+    if (this.toSpawn && this.spawnTimer <= 0 && this.activeCount + this.markers.children.length < CONFIG.enemy.maxAlive &&
+        this.markers.children.length < CONFIG.enemy.maxSpawnMarkers) {
+      if (this.spawnOne()) this.spawnTimer = CONFIG.wave.spawnInterval
     }
-    this.toSpawn = waveSpawnCount(this.wave)
-    this.crateWave++
-    if (CONFIG.crate.fromWave && this.wave >= CONFIG.crate.fromWave && this.crateWave % CONFIG.crate.everyWaves === 0) {
-      this.spawnCrate(new THREE.Vector3(0, 0, 0))
+    this.warnings.update(dt, (desc) => this.materializeSpawn(desc))
+    const api = { world: this.world, navigation: this.navigation, train: this.events.train, player: this.events.player,
+      fireProjectile: (e, target) => this.fireProjectile(e, target),
+      bossRing: (e) => this.projectileSystem.ring(enemyCenter(e)), summon: (pos) => this.spawnMinibugs(pos) }
+    for (const enemy of [...this.enemies]) {
+      if (enemy.dead && enemy.motor.supportId === 'train') {
+        enemy.motor.carry()
+        enemy.group.position.x = enemy.motor.position.x
+        enemy.group.position.z = enemy.motor.position.z
+      }
+      updateEnemyAnim(enemy, dt)
+      updatePursuit(enemy, dt, api)
+    }
+    resolveCrowd(this.world, [this.events.player, ...this.enemies], dt)
+    for (const enemy of this.enemies) {
+      updateEnemyBars(enemy, this.events.camera)
+      if (canMelee(enemy, this.events.player, this.world) && this.events.onContact?.(enemy.def)) {
+        this.events.onHurt?.(CONFIG.player.damageFromEnemy, this.events.player.pos)
+      }
+    }
+    this.projectileSystem.update(dt, this.events.player.pos)
+    updateParticles(dt)
+    for (let i = this.enemies.length - 1; i >= 0; i--) if (this.enemies[i].dead && this.enemies[i].deathState === 'done') this.removeEnemy(i)
+  }
+  isWaveClear() { return this.phase === 'combat' && !this.toSpawn && !this.markers.children.length && !this.activeCount }
+  finishWave() {
+    if (!this.isWaveClear()) return false
+    this.projectileSystem.clear()
+    for (let i = this.enemies.length - 1; i >= 0; i--) this.removeEnemy(i)
+    this.phase = this.wave === CONFIG.goal.winWave ? 'complete' : 'preparation'
+    this.preparationTimer = this.phase === 'preparation' ? CONFIG.wave.preparationTime : 0
+    return true
+  }
+  hurt(enemy, damage, source = 'train') {
+    if (enemy.dead) return
+    const actual = Math.min(enemy.hp, damage)
+    const pos = enemy.group.position.clone()
+    if (damageEnemy(enemy, damage, this.scene)) {
+      if (enemy.def.behavior === 'splitter') this.spawnMinibugs(pos)
+      this.events.onEnemyKilled?.(enemy, source)
+    }
+    this.events.onDamage?.(actual, pos, null, source)
+  }
+  onShotHit(object, damage, hit = {}) {
+    const enemy = this.enemies.find((entry) => entry.body === object || entry.group === object)
+    if (!enemy || enemy.dead) return
+    const zone = hitZoneAt(enemy, hit)
+    const amount = Math.max(1, Math.round(damage * hitZoneMultiplier(enemy, hit) *
+      (hit.weaponKey === 'pistol' && zone === 'head' ? CONFIG.weapon.pistol.headshotMult : 1)))
+    if (zone === 'head') this.events.onHeadshot?.(enemy.group.position, amount)
+    if (hit.knockback && hit.direction && enemy.lastKnockbackShot !== hit.shotId) {
+      enemy.lastKnockbackShot = hit.shotId
+      const factor = enemy.type === 'boss' ? 0 : enemy.type === 'tank' ? CONFIG.weapon.shotgun.tankKnockbackMult : 1
+      const moved = this.world.moveCharacter(enemy.motor.position, hit.direction.clone().setY(0).normalize().multiplyScalar(hit.knockback * factor),
+        { radius: enemy.radius, height: enemy.height, stepHeight: 0.3, snapToGround: true })
+      enemy.motor.position.copy(moved.position)
+      enemy.group.position.copy(moved.position)
+      enemy.pathTimer = 0
+    }
+    this.hurt(enemy, amount, hit.weaponKey)
+  }
+  spawnCrate(position) {
+    this.removeCrate()
+    for (const offset of [[3, 0], [-3, 0], [0, 3], [0, -3]]) {
+      const query = position.clone().add(new THREE.Vector3(offset[0], 0, offset[1]))
+      const support = this.world.querySupport(query, { radius: 0.65, height: 1.2, maxRise: 0.5, maxDrop: 8 })
+      if (!support || !this.world.capsuleClear(support.point, 0.65, 1.2)) continue
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 1.1),
+        new THREE.MeshStandardMaterial({ color: CONFIG.crate.color, emissive: 0x164a46 }))
+      mesh.position.copy(support.point).add(new THREE.Vector3(0, 0.6, 0))
+      this.scene.add(mesh)
+      const body = support.bodyId ? this.world.getBody(support.bodyId) : null
+      this.crate = { mesh, base: support.point.clone(), bodyId: support.bodyId,
+        local: body ? support.point.clone().sub(body.position) : null, spin: 0 }
+      break
     }
   }
-
-  spawnBoss() {
-    const e = createEnemy('boss', 1, this.scene)
-    e.group.position.set(0, 0, -20)
-    this.enemies.push(e)
-  }
-
-  spawnCrate(pos) {
-    if (this.crate) return
-    const m = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 1.2, 1.2),
-      new THREE.MeshStandardMaterial({ color: CONFIG.crate.color, emissive: 0x0b4a52 })
-    )
-    m.position.copy(pos)
-    m.position.y = 0.8
-    this.scene.add(m)
-    this.crate = { mesh: m, spin: 0 }
-  }
-
   updateCrate(dt, playerPos) {
     if (!this.crate) return
-    const c = this.crate
-    c.spin += dt
-    c.mesh.rotation.y += dt * 1.5
-    c.mesh.position.y = 0.8 + Math.sin(c.spin * 2) * 0.15
-    const d = c.mesh.position.clone().setY(0).distanceTo(playerPos.clone().setY(0))
-    if (d < CONFIG.crate.collectRange) {
-      this.events.onCrateCollected(c.mesh.position.clone())
-      this.removeCrate()
+    const crate = this.crate
+    const body = crate.bodyId && this.world.getBody(crate.bodyId)
+    if (body) crate.base.copy(body.position).add(crate.local)
+    crate.spin += dt
+    crate.mesh.rotation.y += dt
+    crate.mesh.position.copy(crate.base).add(new THREE.Vector3(0, 0.6 + Math.sin(crate.spin * 2) * 0.1, 0))
+    const target = playerPos.clone().sub(new THREE.Vector3(0, 1, 0))
+    if (crate.mesh.position.distanceTo(target) < CONFIG.crate.collectRange && !this.world.raycast(crate.mesh.position, target)) {
+      this.events.onCrateCollected?.(crate.mesh.position.clone()); this.removeCrate()
     }
   }
-
   removeCrate() {
     if (!this.crate) return
-    this.scene.remove(this.crate.mesh)
-    this.crate.mesh.geometry.dispose()
-    this.crate = null
+    this.scene.remove(this.crate.mesh); this.crate.mesh.geometry.dispose(); this.crate.mesh.material.dispose(); this.crate = null
   }
-
-  bossRing(origin) {
-    const ring = CONFIG.boss
-    for (let i = 0; i < ring.ringCount; i++) {
-      const a = (i / ring.ringCount) * Math.PI * 2
-      const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a))
-      const pr = this.createProjectile(origin, origin.clone().add(dir.clone().multiplyScalar(15)), 10)
-      pr.vel.y = 2
-      this.projectiles.push(pr)
-    }
-  }
-
-  bossSummon(pos) {
-    this.spawnMinibugs(pos)
-    this.spawnMinibugs(pos)
-  }
-
-  createProjectile(from, to, damage) {
-    const T = THREE.MathUtils.clamp(from.clone().setY(0).distanceTo(to.clone().setY(0)) / CONFIG.projectile.speed, 0.5, 2)
-    const vel = to.clone().sub(from).divideScalar(T)
-    vel.y += 0.5 * CONFIG.projectile.gravity * T
-    const mesh = new THREE.Mesh(this.projGeo, this.projMat)
-    mesh.position.copy(from)
-    this.scene.add(mesh)
-    return { mesh, vel, life: CONFIG.projectile.ttl, damage }
-  }
-
-  fireProjectile(e, playerPos) {
-    const from = enemyCenter(e)
-    const pr = this.createProjectile(from, playerPos, e.def.projDamage)
-    this.projectiles.push(pr)
-  }
-
-  pickType() {
-    const table = CONFIG.wave.table
-    const available = table.filter((t) => this.wave >= t.fromWave)
-    const pool = []
-    for (const t of available) for (let i = 0; i < t.weight; i++) pool.push(t.type)
-    const baseCount = 100 - available.reduce((s, t) => s + t.weight, 0)
-    for (let i = 0; i < Math.max(0, baseCount); i++) pool.push('small')
-    return pool[Math.floor(Math.random() * pool.length)]
-  }
-
-  spawnOne() {
-    this.toSpawn--
-    const type = this.pickType()
-    const angle = Math.random() * Math.PI * 2
-    const dist = CONFIG.enemy.spawnDistance[0] + Math.random() * (CONFIG.enemy.spawnDistance[1] - CONFIG.enemy.spawnDistance[0])
-    const pos = new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist)
-    this.createSpawnMarker(type, pos)
-  }
-
-  createSpawnMarker(type, pos) {
-    const m = CONFIG.enemy.spawnMarker
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(m.ringInner, m.ringOuter, 32),
-      new THREE.MeshBasicMaterial({ color: m.color, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide })
-    )
-    ring.rotation.x = -Math.PI / 2
-    ring.position.set(pos.x, 0.02, pos.z)
-    const pillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(m.ringInner, m.ringInner, m.pillarHeight, 20, 1, true),
-      new THREE.MeshBasicMaterial({ color: m.color, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide })
-    )
-    pillar.position.set(pos.x, m.pillarHeight / 2, pos.z)
-    const g = new THREE.Group()
-    g.add(ring)
-    g.add(pillar)
-    g.userData.desc = { type, pos }
-    this.markers.add(g)
-  }
-
-  updateSpawnMarkers(dt) {
-    const warn = CONFIG.enemy.spawnWarningTime
-    const m = CONFIG.enemy.spawnMarker
-    for (const g of this.markers.children) {
-      const age = (g.userData.age || 0) + dt
-      g.userData.age = age
-      const remain = Math.max(0, warn - age)
-      const k = Math.min(1, remain / warn)
-      const pulse = 1 + Math.sin(age * 10) * 0.18
-      const ring = g.children[0]
-      const pillar = g.children[1]
-      ring.scale.set(pulse, 1, pulse)
-      ring.material.opacity = 0.3 + k * 0.55
-      pillar.scale.set(pulse, 1 + (1 - k) * 0.3, pulse)
-      pillar.material.opacity = 0.08 + k * 0.16
-      if (age >= warn) {
-        this.materializeSpawn(g.userData.desc)
-        this.markers.remove(g)
-        this.disposeMarker(g)
+  removeEnemy(index) {
+    const enemy = this.enemies[index]
+    this.scene.remove(enemy.group)
+    enemy.mixer?.stopAllAction()
+    enemy.group.traverse((mesh) => {
+      if (mesh.isSprite) { mesh.material.map?.dispose(); mesh.material.dispose() }
+      if (mesh.isMesh) {
+        if (!enemy.sharedGeometry || mesh === enemy.hpBar || mesh === enemy.collisionMesh) mesh.geometry.dispose()
+        if (Array.isArray(mesh.material)) mesh.material.forEach((material) => material.dispose())
+        else mesh.material?.dispose()
       }
-    }
+    })
+    this.enemies.splice(index, 1)
   }
-
-  materializeSpawn(desc) {
-    const e = createEnemy(desc.type, 1, this.scene)
-    e.group.position.copy(desc.pos)
-    this.enemies.push(e)
-  }
-
-  disposeMarker(g) {
-    for (const o of g.children) {
-      if (o.geometry) o.geometry.dispose()
-      if (o.material) o.material.dispose()
-    }
-  }
-
-  spawnMinibugs(pos) {
-    for (let i = 0; i < 2; i++) {
-      if (this.enemies.length >= CONFIG.enemy.maxAlive) return
-      const e = createEnemy('minibug', 1, this.scene)
-      e.group.position.copy(pos)
-      e.group.position.x += (Math.random() - 0.5) * 1.5
-      e.group.position.z += (Math.random() - 0.5) * 1.5
-      this.enemies.push(e)
-    }
-  }
-
-  fireProjectile(e, playerPos) {
-    const from = enemyCenter(e)
-    const to = playerPos
-    const dist = from.clone().setY(0).distanceTo(to.clone().setY(0))
-    const T = THREE.MathUtils.clamp(dist / CONFIG.projectile.speed, 0.5, 2)
-    const vel = to.clone().sub(from).divideScalar(T)
-    vel.y += 0.5 * CONFIG.projectile.gravity * T
-    const mesh = new THREE.Mesh(this.projGeo, this.projMat)
-    mesh.position.copy(from)
-    this.scene.add(mesh)
-    this.projectiles.push({ mesh, vel, life: CONFIG.projectile.ttl, damage: e.def.projDamage })
-  }
-
-  update(dt, playerPos, inner) {
-    this.waveTimer -= dt
-    if (this.waveTimer <= 0 && this.toSpawn === 0) this.startWave()
-    const maxMarkers = CONFIG.enemy.maxSpawnMarkers ?? 6
-    if (this.toSpawn > 0) {
-      this.spawnTimer -= dt
-      if (this.spawnTimer <= 0 && this.enemies.length < CONFIG.enemy.maxAlive && this.markers.children.length < maxMarkers) {
-        this.spawnTimer = this.spawnInterval
-        this.spawnOne()
-      } else if (this.markers.children.length >= maxMarkers) {
-        // 场上预告已满，等消化后立刻补位，保持节奏但不堆积
-        this.spawnTimer = 0.1
-      }
-    }
-    this.updateSpawnMarkers(dt)
-    this.updateCrate(dt, playerPos)
-    const p = CONFIG.player
-    const api = {
-      fireProjectile: (e) => this.fireProjectile(e, playerPos),
-      bossRing: (o) => this.bossRing(o),
-      bossSummon: (pos) => this.bossSummon(pos),
-      obstacles: this.events.obstacles,
-    }
-    for (const e of this.enemies) {
-      updateEnemyAnim(e, dt)
-      const b = e.def.behavior
-      if (b === 'spitter') updateSpitter(e, playerPos, dt, inner, this.enemies, api)
-      else if (b === 'charger') updateCharger(e, playerPos, dt, inner, this.enemies, api)
-      else if (b === 'boss') updateBoss(e, playerPos, dt, inner, this.enemies, api)
-      else chaseEnemy(e, playerPos, dt, inner, this.enemies)
-      updateEnemyBars(e, this.events.camera)
-      const c = enemyCenter(e)
-      if (!e.dead && Math.hypot(c.x - playerPos.x, c.z - playerPos.z) < p.contactRadius + e.def.size / 2 && playerPos.y <= p.height + 0.5) {
-        if (this.events.onContact(e.def)) {
-          if (this.events.onHurt) this.events.onHurt(p.damageFromEnemy, playerPos)
-        }
-      }
-    }
-    this.updateProjectiles(dt, playerPos)
-    updateParticles(dt)
-    // 清理已死亡的敌人
-    for (let i = this.enemies.length - 1; i >= 0; i--) {
-      if (this.enemies[i].dead && this.enemies[i].deathState === 'done') {
-        const dead = this.enemies[i]
-        const ring = dead.group.userData.dbgRing
-        if (ring) { this.scene.remove(ring); delete dead.group.userData.dbgRing }
-        this.scene.remove(dead.group)
-        this.enemies.splice(i, 1)
-      }
-    }
-  }
-
-  updateProjectiles(dt, playerPos) {
-    const pc = CONFIG.projectile
-    const pcenter = playerPos.clone()
-    for (let i = this.projectiles.length - 1; i >= 0; i--) {
-      const pr = this.projectiles[i]
-      pr.mesh.position.addScaledVector(pr.vel, dt)
-      pr.vel.y -= pc.gravity * dt
-      pr.life -= dt
-      const d = pr.mesh.position.distanceTo(pcenter)
-      if (d < pc.playerHitRadius + pc.radius) {
-        if (this.events.onProjectileHit(pr)) this.removeProjectile(i)
-      } else if (pr.life <= 0 || pr.mesh.position.y <= 0) this.removeProjectile(i)
-    }
-  }
-
-  removeProjectile(i) {
-    const pr = this.projectiles[i]
-    this.scene.remove(pr.mesh)
-    this.projectiles.splice(i, 1)
-  }
-
-  onShotHit(obj, damage, hit) {
-    if (!obj) return
-    let i = this.enemies.findIndex((e) => e.body === obj)
-    if (i < 0) i = this.enemies.findIndex((e) => e.group === obj)
-    if (i < 0) return
-    const e = this.enemies[i]
-    if (e.dead) return
-    const pos = e.group.position.clone()
-    const zone = hitZoneAt(e, hit)
-    const dmg = Math.max(1, Math.round(damage * hitZoneMultiplier(e, hit)))
-    if (zone === 'head' && this.events.onHeadshot) this.events.onHeadshot(pos, dmg)
-    if (damageEnemy(e, dmg, this.scene)) {
-      // 不立即移除，等死亡动画播完（update 中检测 deathState === 'done'）
-      if (e.def.behavior === 'splitter') this.spawnMinibugs(pos)
-      this.events.onEnemyKilled(e, e.type)
-    }
-    if (this.events.onDamage) this.events.onDamage(dmg, pos, zone)
-  }
-
   clear() {
-    for (const e of this.enemies) {
-      const ring = e.group.userData.dbgRing
-      if (ring) { this.scene.remove(ring); delete e.group.userData.dbgRing }
-      this.scene.remove(e.group)
-    }
-    for (const pr of this.projectiles) this.scene.remove(pr.mesh)
-    for (const g of this.markers.children) this.disposeMarker(g)
-    this.markers.clear()
-    this.enemies.length = 0
-    this.projectiles.length = 0
-    this.removeCrate()
+    for (let i = this.enemies.length - 1; i >= 0; i--) this.removeEnemy(i)
+    this.projectileSystem.clear(); this.warnings.clear(); this.removeCrate(); clearEnemyParticles()
+    this.wave = 0; this.phase = 'preparation'; this.preparationTimer = CONFIG.wave.preparationTime
+    this.spawnQueue = []; this.spawnTimer = 0; this.lastDirection = '附近街区'
   }
-
-  get waveNumber() {
-    return this.wave
+  getHudData() {
+    return { wave: this.wave, waveTotal: CONFIG.goal.winWave, phase: this.phase, preparationRemaining: this.preparationTimer,
+      directions: this.lastDirection, enemiesRemaining: this.activeCount + this.toSpawn + this.markers.children.length }
   }
 }
